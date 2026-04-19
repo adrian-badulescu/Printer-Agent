@@ -1,0 +1,24 @@
+<Project Sdk="WixToolset.Sdk/4.0.0">
+  <PropertyGroup>
+    <OutputName>PrinterAgent</OutputName>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Pass the publish directory to Package.wxs as a preprocessor variable -->
+    <WorkerPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\bin\$(Configuration)\net10.0\win-x64\publish\'))</WorkerPublishDir>
+    <DefineConstants>WorkerPublishDir=$(WorkerPublishDir)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PrinterAgent.Worker\PrinterAgent.Worker.csproj" />
+  </ItemGroup>
+
+  <!-- Publish the worker as a self-contained single-file before building the MSI -->
+  <Target Name="PublishWorker" BeforeTargets="Build">
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\PrinterAgent.Worker.csproj&quot; -c $(Configuration)" />
+  </Target>
+
+  <Target Name="SignMsi" AfterTargets="Build">
+    <Exec Command="powershell -Command &quot;Set-AuthenticodeSignature -FilePath '$(TargetPath)' -Certificate (Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'CN=U.R.S.' } | Select-Object -First 1)&quot;" />
+  </Target>
+</Project>

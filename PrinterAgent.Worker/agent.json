@@ -1,0 +1,40 @@
+{
+  "RestaurantId": "123",
+  "BackendUrl": "http://10.8.0.1:7051",
+  "BackendJwtToken": "your-jwt-token-here",
+  "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
+  "Version": "1.0.3",
+  "MaxPrintRetryAttempts": 5,
+  "PrintRetryBaseDelayMs": 1000,
+  "Connectivity": {
+    "VerifyAtStartup": true,
+    "BackendHealthPath": "api/ping-lite",
+    "BackendHealthTimeoutSeconds": 10
+  },
+  "WireGuard": {
+    "Enabled": false,
+    "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\restaurant-tunnel.conf",
+    "WindowsTunnelServiceName": "WireGuardTunnel$restaurant-tunnel",
+    "WaitForTunnelServiceSeconds": 120,
+    "StartServiceIfStopped": false
+  },
+  "Redis": {
+    "Host": "10.8.0.2",
+    "Port": "6379",
+    "User": "printer-agent",
+    "Password": "redis-acl-password",
+    "Ssl": false,
+    "AbortConnect": false,
+    "ClientName": "URSPrinterAgent",
+    "StreamKeyPrefix": "print.jobs",
+    "ConsumerGroup": "printer-agents"
+  },
+  "Printers": [
+    {
+      "Id": "kitchen-1",
+      "Name": "Kitchen Printer",
+      "IpAddress": "192.168.1.100",
+      "Port": 9100
+    }
+  ]
+}
