@@ -4,7 +4,12 @@ namespace PrinterAgent.Application.Interfaces;
 
 public interface IAppConfiguration
 {
+    /// <summary>Opțional după enroll; poate rămâne gol dacă restaurantul vine din sesiune.</summary>
     string RestaurantId { get; }
+
+    /// <summary>Cod temporar de provisioning (din manager); șters după primul enroll reușit.</summary>
+    string? EnrollmentCode { get; }
+
     string BackendUrl { get; }
     string BackendJwtToken { get; }
     string RedisConnectionString { get; }
@@ -24,4 +29,7 @@ public interface IAppConfiguration
     string UpdateSignatureSecret { get; }
     int MaxPrintRetryAttempts { get; }
     int PrintRetryBaseDelayMs { get; }
+
+    /// <summary>Timeout TCP la conectarea la imprimantă (secunde); evită blocarea în status Printing minute întregi.</summary>
+    int PrinterConnectTimeoutSeconds { get; }
 }

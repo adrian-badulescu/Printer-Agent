@@ -14,6 +14,16 @@ public class AppConfiguration : IAppConfiguration
     }
 
     public string RestaurantId => _configuration["RestaurantId"] ?? string.Empty;
+
+    public string? EnrollmentCode
+    {
+        get
+        {
+            var v = _configuration["EnrollmentCode"];
+            return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        }
+    }
+
     public string BackendUrl => _configuration["BackendUrl"] ?? string.Empty;
     public string BackendJwtToken => _configuration["BackendJwtToken"] ?? string.Empty;
 
@@ -46,6 +56,9 @@ public class AppConfiguration : IAppConfiguration
     public int MaxPrintRetryAttempts => int.TryParse(_configuration["MaxPrintRetryAttempts"], out var n) ? Math.Clamp(n, 1, 30) : 5;
 
     public int PrintRetryBaseDelayMs => int.TryParse(_configuration["PrintRetryBaseDelayMs"], out var ms) ? Math.Clamp(ms, 100, 60_000) : 1000;
+
+    public int PrinterConnectTimeoutSeconds =>
+        int.TryParse(_configuration["PrinterConnectTimeoutSeconds"], out var s) ? Math.Clamp(s, 1, 120) : 15;
 
     public List<Printer> Printers
     {

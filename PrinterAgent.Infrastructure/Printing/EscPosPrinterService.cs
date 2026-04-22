@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Observability;
@@ -32,7 +33,18 @@ public class EscPosPrinterService : IPrinterService
                     printer.Name, printer.IpAddress, printer.Port, attempt, maxAttempts);
 
                 using var client = new TcpClient();
-                await client.ConnectAsync(printer.IpAddress, printer.Port, cancellationToken);
+                var connectTimeout = TimeSpan.FromSeconds(_appConfiguration.PrinterConnectTimeoutSeconds);
+                using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                connectCts.CancelAfter(connectTimeout);
+                try
+                {
+                    await client.ConnectAsync(printer.IpAddress, printer.Port, connectCts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"Connect to {printer.IpAddress}:{printer.Port} exceeded {connectTimeout.TotalSeconds}s.");
+                }
                 using var stream = client.GetStream();
 
                 var escPosData = RenderReceipt(job);

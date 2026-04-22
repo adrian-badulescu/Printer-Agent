@@ -9,33 +9,41 @@ namespace PrinterAgent.Infrastructure.Redis;
 
 public class RedisStreamConsumer : IRedisStreamConsumer
 {
-    private readonly IConnectionMultiplexer _redis;
+    private readonly Lazy<IConnectionMultiplexer> _redisLazy;
     private readonly IPrintJobProcessor _printJobProcessor;
     private readonly ILogger<RedisStreamConsumer> _logger;
-    private readonly IMacResolver _macResolver;
+    private readonly IAgentSessionStore _sessionStore;
     private readonly IAppConfiguration _appConfiguration;
 
     public RedisStreamConsumer(
-        IConnectionMultiplexer redis,
+        Lazy<IConnectionMultiplexer> redisLazy,
         IPrintJobProcessor printJobProcessor,
         ILogger<RedisStreamConsumer> logger,
-        IMacResolver macResolver,
+        IAgentSessionStore sessionStore,
         IAppConfiguration appConfiguration)
     {
-        _redis = redis;
+        _redisLazy = redisLazy;
         _printJobProcessor = printJobProcessor;
         _logger = logger;
-        _macResolver = macResolver;
+        _sessionStore = sessionStore;
         _appConfiguration = appConfiguration;
     }
 
     public async Task StartConsumingAsync(string restaurantId, CancellationToken cancellationToken = default)
     {
-        var db = _redis.GetDatabase();
+        var agentId = _sessionStore.AgentId;
+        if (string.IsNullOrWhiteSpace(agentId))
+        {
+            _logger.LogError("Redis consumer: lipsă AgentId în sesiune.");
+            return;
+        }
+
+        var redis = _redisLazy.Value;
+        var db = redis.GetDatabase();
         var prefix = _appConfiguration.RedisStreamKeyPrefix.Trim().TrimEnd('.');
         var streamName = $"{prefix}.{restaurantId}";
         var groupName = _appConfiguration.RedisConsumerGroup.Trim();
-        var consumerName = _macResolver.GetMacAddress();
+        var consumerName = agentId;
 
         _logger.LogInformation(
             "Redis Streams: stream={Stream} group={Group} consumer={Consumer} (conexiune: {Conn})",

@@ -1,0 +1,73 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "PrinterAgent.Application/1.0.0": {
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.6",
+          "PrinterAgent.Domain": "1.0.0"
+        },
+        "runtime": {
+          "PrinterAgent.Application.dll": {}
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions/10.0.6": {
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.626.17701"
+          }
+        }
+      },
+      "Microsoft.Extensions.Logging.Abstractions/10.0.6": {
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.6"
+        },
+        "runtime": {
+          "lib/net10.0/Microsoft.Extensions.Logging.Abstractions.dll": {
+            "assemblyVersion": "10.0.0.0",
+            "fileVersion": "10.0.626.17701"
+          }
+        }
+      },
+      "PrinterAgent.Domain/1.0.0": {
+        "runtime": {
+          "PrinterAgent.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PrinterAgent.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Microsoft.Extensions.DependencyInjection.Abstractions/10.0.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-w+dX4SIr1X9yegX2yX2dU1XtP4JAUVNdvOG/Evn+H+ndn96YzfIPX52FALXChrRNWFR9l77FQyg1mB7WQo6iOA==",
+      "path": "microsoft.extensions.dependencyinjection.abstractions/10.0.6",
+      "hashPath": "microsoft.extensions.dependencyinjection.abstractions.10.0.6.nupkg.sha512"
+    },
+    "Microsoft.Extensions.Logging.Abstractions/10.0.6": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-1YgBO3wAy0dlpQyVTKWBSPND/t0yZHsvd3shGpbeEwH8JSb2hnFI2pNFrOOUi/stsp+T/dqwqmRIGh47ibo9bw==",
+      "path": "microsoft.extensions.logging.abstractions/10.0.6",
+      "hashPath": "microsoft.extensions.logging.abstractions.10.0.6.nupkg.sha512"
+    },
+    "PrinterAgent.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

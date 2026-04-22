@@ -1,11 +1,13 @@
 {
-  "RestaurantId": "123",
-  "BackendUrl": "http://10.8.0.1:7051",
-  "BackendJwtToken": "your-jwt-token-here",
+  "RestaurantId": "",
+  "EnrollmentCode": "",
+  "BackendUrl": "http://localhost:7051",
+  "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
-  "Version": "1.0.3",
+  "Version": "1.0.4",
   "MaxPrintRetryAttempts": 5,
   "PrintRetryBaseDelayMs": 1000,
+  "PrinterConnectTimeoutSeconds": 15,
   "Connectivity": {
     "VerifyAtStartup": true,
     "BackendHealthPath": "api/ping-lite",
@@ -19,22 +21,13 @@
     "StartServiceIfStopped": false
   },
   "Redis": {
-    "Host": "10.8.0.2",
+    "Host": "127.0.0.1",
     "Port": "6379",
-    "User": "printer-agent",
-    "Password": "redis-acl-password",
     "Ssl": false,
     "AbortConnect": false,
     "ClientName": "URSPrinterAgent",
     "StreamKeyPrefix": "print.jobs",
     "ConsumerGroup": "printer-agents"
   },
-  "Printers": [
-    {
-      "Id": "kitchen-1",
-      "Name": "Kitchen Printer",
-      "IpAddress": "192.168.1.100",
-      "Port": 9100
-    }
-  ]
+  "Printers": []
 }

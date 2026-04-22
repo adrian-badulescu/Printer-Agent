@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="PrinterAgent.Application/PrinterAgent.Application.csproj" />
+  <Project Path="PrinterAgent.Configurator/PrinterAgent.Configurator.csproj" />
   <Project Path="PrinterAgent.Domain/PrinterAgent.Domain.csproj" />
   <Project Path="PrinterAgent.Infrastructure/PrinterAgent.Infrastructure.csproj" />
   <Project Path="PrinterAgent.Installer/PrinterAgent.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />

@@ -6,16 +6,24 @@
     <InstallerPlatform>x64</InstallerPlatform>
     <!-- Pass the publish directory to Package.wxs as a preprocessor variable -->
     <WorkerPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\bin\$(Configuration)\net10.0\win-x64\publish\'))</WorkerPublishDir>
-    <DefineConstants>WorkerPublishDir=$(WorkerPublishDir)</DefineConstants>
+    <ConfiguratorPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\bin\$(Configuration)\net10.0-windows\win-x64\publish\'))</ConfiguratorPublishDir>
+    <DefineConstants>WorkerPublishDir=$(WorkerPublishDir);ConfiguratorPublishDir=$(ConfiguratorPublishDir)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PrinterAgent.Worker\PrinterAgent.Worker.csproj" />
+    <ProjectReference Include="..\PrinterAgent.Configurator\PrinterAgent.Configurator.csproj" />
   </ItemGroup>
 
-  <!-- Publish the worker as a self-contained single-file before building the MSI -->
-  <Target Name="PublishWorker" BeforeTargets="Build">
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.6" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.6" />
+  </ItemGroup>
+
+  <!-- Publish worker + configurator before building the MSI (Configurator must not block MSI; runs as separate EXE after install). -->
+  <Target Name="PublishAgentProjects" BeforeTargets="Build">
     <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\PrinterAgent.Worker.csproj&quot; -c $(Configuration)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\PrinterAgent.Configurator.csproj&quot; -c $(Configuration)" />
   </Target>
 
   <Target Name="SignMsi" AfterTargets="Build">

@@ -9,7 +9,7 @@ namespace PrinterAgent.Worker;
 
 /// <summary>
 /// După WireGuard (dacă e activ): verifică Redis (PING) și reachability HTTP la backend (fără JWT).
-/// PING folosește o conexiune temporară; serviciul principal folosește în continuare singleton-ul <see cref="IConnectionMultiplexer"/>.
+/// PING folosește o conexiune temporară; consumul stream folosește <see cref="Lazy{T}"/> pentru <see cref="StackExchange.Redis.IConnectionMultiplexer"/> (conectare la prima citire).
 /// </summary>
 public sealed class StartupConnectivityHostedService : IHostedService
 {

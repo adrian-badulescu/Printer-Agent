@@ -9,6 +9,8 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Authenticode: opt-in (`dotnet publish -p:SignPrinterAgent=true` when cert is in CurrentUser\My) -->
+    <SignPrinterAgent Condition="'$(SignPrinterAgent)' == ''">false</SignPrinterAgent>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,7 +33,7 @@
     </Content>
   </ItemGroup>
 
-  <Target Name="SignExe" AfterTargets="Publish">
-    <Exec Command="powershell -Command &quot;Set-AuthenticodeSignature -FilePath '$(PublishDir)$(AssemblyName).exe' -Certificate (Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'CN=U.R.S.' } | Select-Object -First 1)&quot;" />
+  <Target Name="SignExe" AfterTargets="Publish" Condition="'$(SignPrinterAgent)' == 'true'">
+    <Exec Command="powershell -NoProfile -Command &quot;$c = Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'CN=U.R.S.' } | Select-Object -First 1; if (-not $c) { throw 'No code-signing cert matching CN=U.R.S. in Cert:\CurrentUser\My' }; Set-AuthenticodeSignature -FilePath '$(PublishDir)$(AssemblyName).exe' -Certificate $c&quot;" />
   </Target>
 </Project>
