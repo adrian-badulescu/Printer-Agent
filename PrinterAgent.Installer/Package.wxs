@@ -2,7 +2,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.5.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
+  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.11.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
     <MajorUpgrade DowngradeErrorMessage="A newer version of URS Printer Agent is already installed." />
 
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
@@ -20,6 +20,18 @@
                   Impersonate="yes"
                   Return="asyncNoWait" />
 
+    <!-- ServiceControl uneori nu elimină serviciul (ex. pachet x64 + msiexec 32-bit). CA amânat, SYSTEM, după StopServices. -->
+    <CustomAction Id="ForceRemoveUrsService"
+                  Directory="System64Folder"
+                  ExeCommand="cmd.exe /c &quot;sc.exe stop URSPrinterAgent &amp; sc.exe delete URSPrinterAgent&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="ForceRemoveUrsService" After="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
     <UI Id="AgentInstallerUI">
       <ui:WixUI Id="WixUI_Minimal" />
       <Publish Dialog="ExitDialog"
@@ -36,7 +48,10 @@
 
     <!-- Runtime config lives here; seed on first install only (NeverOverwrite) so upgrades refresh the EXE-side template, not operator data. -->
     <StandardDirectory Id="CommonAppDataFolder">
-      <Directory Id="AGENTPROGRAMDATAFOLDER" Name="URSPrinterAgent" />
+      <Directory Id="AGENTPROGRAMDATAFOLDER" Name="URSPrinterAgent">
+        <!-- logs\ există la instalare (worker scrie aici fatal-startup / alte loguri); altfel utilizatorul vede doar agent.json. -->
+        <Directory Id="AGENTPROGRAMDATALOGS" Name="logs" />
+      </Directory>
     </StandardDirectory>
 
     <ComponentGroup Id="AgentProgramDataComponents" Directory="AGENTPROGRAMDATAFOLDER">
@@ -48,6 +63,11 @@
         <File Id="AgentProgramDataAgentJsonFile" Source="$(var.WorkerPublishDir)agent.json" KeyPath="yes">
           <util:PermissionEx User="Users" GenericAll="yes" />
         </File>
+      </Component>
+      <Component Id="AgentProgramDataLogsFolder" Guid="a1f2e3d4-c5b6-4789-a012-3456789abcde" Directory="AGENTPROGRAMDATALOGS" Bitness="always64">
+        <CreateFolder>
+          <util:PermissionEx User="Users" GenericAll="yes" />
+        </CreateFolder>
       </Component>
     </ComponentGroup>
 
@@ -68,13 +88,19 @@
           Account="LocalSystem" 
           ErrorControl="normal" />
 
-        <!-- Start the service on install, Stop/Delete on uninstall -->
+        <!-- Stop/Remove explicit la uninstall (în plus față de ForceRemoveUrsService). -->
         <ServiceControl 
           Id="ServiceController" 
           Start="install" 
           Stop="both" 
           Remove="uninstall" 
           Name="URSPrinterAgent" 
+          Wait="yes" />
+        <ServiceControl
+          Id="ServiceControllerUninstall"
+          Stop="uninstall"
+          Remove="uninstall"
+          Name="URSPrinterAgent"
           Wait="yes" />
       </Component>
       

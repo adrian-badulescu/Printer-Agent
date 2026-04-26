@@ -64,7 +64,7 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                         || string.IsNullOrWhiteSpace(payload.RefreshToken)
                         || string.IsNullOrWhiteSpace(payload.RestaurantId))
                     {
-                        _logger.LogWarning("Răspuns refresh invalid.");
+                        _logger.LogWarning("Invalid refresh response.");
                         return false;
                     }
 
@@ -77,20 +77,20 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                             cancellationToken)
                         .ConfigureAwait(false);
 
-                    _logger.LogInformation("Token de acces reînnoit pentru agentId {AgentId}.", _sessionStore.AgentId);
+                    _logger.LogInformation("Access token renewed for agentId {AgentId}.", _sessionStore.AgentId);
                     return true;
                 }
 
                 if (code == 401 || code == 403)
                 {
                     var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    _logger.LogWarning("Refresh respins ({Status}): {Body} — refresh-ul nu mai e valid.", code, err);
+                    _logger.LogWarning("Refresh rejected ({Status}): {Body} — refresh token is no longer valid.", code, err);
                     return false;
                 }
 
                 if (code == 429)
                 {
-                    _logger.LogWarning("Refresh respins (429); încercați mai târziu.");
+                    _logger.LogWarning("Refresh rejected (429); try again later.");
                     return false;
                 }
 
@@ -98,7 +98,7 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                 {
                     var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                     _logger.LogWarning(
-                        "Refresh HTTP {Status} (încercare {Attempt}/{Max}); reîncerc după pauză. {Body}",
+                        "Refresh HTTP {Status} (attempt {Attempt}/{Max}); retrying after delay. {Body}",
                         code,
                         attempt,
                         MaxRefreshAttempts,
@@ -108,7 +108,7 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                 }
 
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                _logger.LogWarning("Refresh esuat ({Status}): {Body}", code, body);
+                _logger.LogWarning("Refresh failed ({Status}): {Body}", code, body);
                 return false;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -119,11 +119,11 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
             {
                 if (attempt >= MaxRefreshAttempts)
                 {
-                    _logger.LogWarning(ex, "Refresh: esec retea/timeout dupa {Max} incercari.", MaxRefreshAttempts);
+                    _logger.LogWarning(ex, "Refresh: network/timeout failure after {Max} attempts.", MaxRefreshAttempts);
                     return false;
                 }
 
-                _logger.LogWarning(ex, "Refresh: eroare tranzitorie (incercare {Attempt}/{Max}).", attempt, MaxRefreshAttempts);
+                _logger.LogWarning(ex, "Refresh: transient error (attempt {Attempt}/{Max}).", attempt, MaxRefreshAttempts);
                 await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
             }
         }

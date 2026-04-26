@@ -74,7 +74,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Nu pot citi {File}; sesiune ignorată.", SessionFileName);
+            _logger.LogWarning(ex, "Cannot read {File}; session ignored.", SessionFileName);
             _session = null;
         }
     }
@@ -135,7 +135,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
 
         var id = Guid.NewGuid();
         File.WriteAllText(path, id.ToString("D"));
-        _logger.LogInformation("Creat {File} cu clientInstanceId {Id}.", InstanceFileName, id);
+        _logger.LogInformation("Created {File} with clientInstanceId {Id}.", InstanceFileName, id);
         return id;
     }
 
@@ -187,7 +187,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
         var path = Path.Combine(_baseDir, SessionFileName);
         await using var fs = File.Create(path);
         await JsonSerializer.SerializeAsync(fs, fileDto, SerializerOptions, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("Sesiune salvată în {File} (agentId={AgentId}).", SessionFileName, agentId);
+        _logger.LogInformation("Session saved to {File} (agentId={AgentId}).", SessionFileName, agentId);
 
         AgentProgramDataAgentJsonSync.TryWriteRestaurantId(restaurantId, _logger);
     }
@@ -199,7 +199,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
         if (File.Exists(path))
         {
             File.Delete(path);
-            _logger.LogWarning("Sesiune ștearsă ({File}). Re-enroll: setează EnrollmentCode în agent.json și repornește serviciul.", SessionFileName);
+            _logger.LogWarning("Session cleared ({File}). Re-enroll: set EnrollmentCode in agent.json and restart the service.", SessionFileName);
         }
 
         return Task.CompletedTask;

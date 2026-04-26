@@ -34,7 +34,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         var agentId = _sessionStore.AgentId;
         if (string.IsNullOrWhiteSpace(agentId))
         {
-            _logger.LogError("Redis consumer: lipsă AgentId în sesiune.");
+            _logger.LogError("Redis consumer: AgentId is missing in session.");
             return;
         }
 
@@ -46,7 +46,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         var consumerName = agentId;
 
         _logger.LogInformation(
-            "Redis Streams: stream={Stream} group={Group} consumer={Consumer} (conexiune: {Conn})",
+            "Redis Streams: stream={Stream} group={Group} consumer={Consumer} (connection: {Conn})",
             streamName,
             groupName,
             consumerName,

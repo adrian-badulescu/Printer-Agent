@@ -14,7 +14,7 @@ Write-Host '=== SCM binary path (sc qc) ===' -ForegroundColor Cyan
 & sc.exe qc $svcName 2>$null
 
 Write-Host '=== Config files ===' -ForegroundColor Cyan
-Write-Host "agent.json:     $(if (Test-Path $agentJson) { 'OK ' + $agentJson } else { 'MISSING - host will fail at startup (required, optional:false)' })"
+Write-Host "agent.json:     $(if (Test-Path $agentJson) { 'OK ' + $agentJson } else { 'MISSING in ProgramData — install-dir agent.json is used; seed ProgramData via MSI or copy template' })"
 Write-Host "agent.session:  $(if (Test-Path $sessionJson) { 'OK ' + $sessionJson } else { 'absent (normal until enroll succeeds)' })"
 
 $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue

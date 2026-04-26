@@ -33,14 +33,14 @@ public sealed class WireGuardTunnelHostedService : IHostedService
         if (!string.IsNullOrWhiteSpace(opt.ConfigFilePath))
         {
             _logger.LogInformation(
-                "WireGuard: fișier config înregistrat (admin: import în aplicația WireGuard): {Path}",
+                "WireGuard: config file path (admin: import in WireGuard app): {Path}",
                 opt.ConfigFilePath);
         }
 
         if (string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName))
         {
             _logger.LogWarning(
-                "WireGuard.Enabled=true dar WindowsTunnelServiceName lipsește; nu se verifică/pornește tunelul.");
+                "WireGuard.Enabled=true but WindowsTunnelServiceName is missing; tunnel will not be checked or started.");
             return Task.CompletedTask;
         }
 
@@ -48,7 +48,7 @@ public sealed class WireGuardTunnelHostedService : IHostedService
         {
             using var sc = new ServiceController(opt.WindowsTunnelServiceName);
             _logger.LogInformation(
-                "WireGuard: serviciu {Service} are statusul {Status}.",
+                "WireGuard: service {Service} status is {Status}.",
                 opt.WindowsTunnelServiceName,
                 sc.Status);
 
@@ -58,14 +58,14 @@ public sealed class WireGuardTunnelHostedService : IHostedService
             if (sc.Status == ServiceControllerStatus.Stopped && !opt.StartServiceIfStopped)
             {
                 _logger.LogError(
-                    "WireGuard: serviciul {Service} este oprit. Activați StartServiceIfStopped sau porniți tunelul din aplicația WireGuard.",
+                    "WireGuard: service {Service} is stopped. Enable StartServiceIfStopped or start the tunnel from the WireGuard app.",
                     opt.WindowsTunnelServiceName);
                 return Task.CompletedTask;
             }
 
             if (opt.StartServiceIfStopped && sc.Status == ServiceControllerStatus.Stopped)
             {
-                _logger.LogInformation("WireGuard: pornire serviciu {Service}...", opt.WindowsTunnelServiceName);
+                _logger.LogInformation("WireGuard: starting service {Service}...", opt.WindowsTunnelServiceName);
                 sc.Start();
             }
 
@@ -74,26 +74,26 @@ public sealed class WireGuardTunnelHostedService : IHostedService
             if (sc.Status != ServiceControllerStatus.Running)
             {
                 _logger.LogError(
-                    "WireGuard: serviciul {Service} nu este Running după {Timeout}. Status curent: {Status}.",
+                    "WireGuard: service {Service} is not Running after {Timeout}. Current status: {Status}.",
                     opt.WindowsTunnelServiceName,
                     timeout,
                     sc.Status);
             }
             else
             {
-                _logger.LogInformation("WireGuard: serviciu {Service} este Running.", opt.WindowsTunnelServiceName);
+                _logger.LogInformation("WireGuard: service {Service} is Running.", opt.WindowsTunnelServiceName);
             }
         }
         catch (InvalidOperationException ex)
         {
             _logger.LogError(
                 ex,
-                "WireGuard: serviciul {Service} nu a fost găsit sau nu poate fi pornit (drepturi admin / nume greșit?).",
+                "WireGuard: service {Service} not found or could not be started (admin rights / wrong name?).",
                 opt.WindowsTunnelServiceName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "WireGuard: eroare la verificarea tunelului.");
+            _logger.LogError(ex, "WireGuard: error while checking tunnel.");
         }
 
         return Task.CompletedTask;

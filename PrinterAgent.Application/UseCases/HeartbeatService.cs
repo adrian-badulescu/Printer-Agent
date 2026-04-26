@@ -41,7 +41,7 @@ public class HeartbeatService : IHeartbeatService
             var restaurantId = _sessionStore.SessionRestaurantId ?? _appConfiguration.RestaurantId;
             if (string.IsNullOrWhiteSpace(agentId) || string.IsNullOrWhiteSpace(restaurantId))
             {
-                _logger.LogWarning("Heartbeat omis: lipsă AgentId sau RestaurantId în sesiune.");
+                _logger.LogWarning("Heartbeat skipped: AgentId or RestaurantId is missing in session.");
                 return;
             }
 
@@ -57,7 +57,7 @@ public class HeartbeatService : IHeartbeatService
             if (!ok && !string.IsNullOrWhiteSpace(_sessionStore.RefreshToken))
             {
                 _logger.LogWarning(
-                    "Heartbeat neautorizat pentru agentId={AgentId}; încerc refresh forțat și un al doilea heartbeat.",
+                    "Unauthorized heartbeat for agentId={AgentId}; attempting forced token refresh and a second heartbeat.",
                     agentId);
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken, force: true)
                     .ConfigureAwait(false);
@@ -67,7 +67,7 @@ public class HeartbeatService : IHeartbeatService
             if (!ok)
             {
                 _logger.LogWarning(
-                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Sesiune ștearsă; dacă refresh a eșuat definitiv, setează EnrollmentCode în agent.json și repornește serviciul.",
+                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Session cleared; if refresh failed permanently, set EnrollmentCode in agent.json and restart the service.",
                     agentId);
                 await _sessionStore.ClearSessionAsync(cancellationToken).ConfigureAwait(false);
                 return;

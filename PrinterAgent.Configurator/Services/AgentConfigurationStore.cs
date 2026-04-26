@@ -42,7 +42,7 @@ public sealed class AgentConfigurationStore
             ["BackendUrl"] = "http://localhost:7051",
             ["BackendJwtToken"] = "",
             ["UpdateSignatureSecret"] = "change-me-same-as-backend-PrinterAgent",
-            ["Version"] = "1.0.4",
+            ["Version"] = "1.0.7",
             ["MaxPrintRetryAttempts"] = 5,
             ["PrintRetryBaseDelayMs"] = 1000,
             ["PrinterConnectTimeoutSeconds"] = 15,

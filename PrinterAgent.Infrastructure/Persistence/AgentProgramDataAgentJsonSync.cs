@@ -34,11 +34,11 @@ internal static class AgentProgramDataAgentJsonSync
 
             root["RestaurantId"] = restaurantId;
             File.WriteAllText(path, root.ToJsonString(WriteOptions));
-            logger.LogInformation("RestaurantId scris în agent.json (sesiune / enroll).");
+            logger.LogInformation("Wrote RestaurantId to agent.json (session / enrollment).");
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Nu s-a putut actualiza RestaurantId în agent.json.");
+            logger.LogWarning(ex, "Could not update RestaurantId in agent.json.");
         }
     }
 }

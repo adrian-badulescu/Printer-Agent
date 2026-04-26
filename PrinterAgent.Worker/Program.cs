@@ -11,6 +11,7 @@ using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Infrastructure.System;
 using PrinterAgent.Worker;
 using PrinterAgent.Worker.Config;
+using PrinterAgent.Worker.Logging;
 using StackExchange.Redis;
 
 try
@@ -23,12 +24,17 @@ try
         .ConfigureAppConfiguration((hostContext, config) =>
         {
             // 1) Defaults bundled with the EXE (updated on every MSI / in-app update install).
-            // 2) %ProgramData%\URSPrinterAgent\agent.json — operator overrides; survives upgrades when MSI uses NeverOverwrite on seed.
+            // 2) %ProgramData%\URSPrinterAgent\agent.json — operator overrides; must be optional: MSI may not have
+            //    laid down the file yet, or a manual copy was never created; ProgramData still exists for session/logs.
             var bundledAgentJson = Path.Combine(AppContext.BaseDirectory, "agent.json");
             _ = AgentProgramData.Root;
             var programDataAgentJson = Path.Combine(AgentProgramData.Root, "agent.json");
             config.AddJsonFile(bundledAgentJson, optional: true, reloadOnChange: false);
-            config.AddJsonFile(programDataAgentJson, optional: false, reloadOnChange: true);
+            config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
+        })
+        .ConfigureLogging(logging =>
+        {
+            logging.AddProvider(new ProgramDataFileLoggerProvider());
         })
         .ConfigureServices((hostContext, services) =>
         {

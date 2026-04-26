@@ -32,7 +32,7 @@ public sealed class StartupConnectivityHostedService : IHostedService
         var opt = _options.Value;
         if (!opt.VerifyAtStartup)
         {
-            _logger.LogInformation("Connectivity: verificare la pornire dezactivată (Connectivity:VerifyAtStartup=false).");
+            _logger.LogInformation("Connectivity: startup checks disabled (Connectivity:VerifyAtStartup=false).");
             return;
         }
 
@@ -48,24 +48,24 @@ public sealed class StartupConnectivityHostedService : IHostedService
             {
                 _logger.LogError(
                     ex,
-                    "Connectivity: Redis nu răspunde. Verifică rețeaua / VPN / stringul de conexiune.");
+                    "Connectivity: Redis did not respond. Check network / VPN / connection string.");
             }
         }
         else
         {
-            _logger.LogWarning("Connectivity: Redis nu e configurat — sar PING-ul Redis.");
+            _logger.LogWarning("Connectivity: Redis is not configured — skipping Redis PING.");
         }
 
         var baseUrl = _appConfiguration.BackendUrl?.Trim();
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            _logger.LogWarning("Connectivity: BackendUrl lipsește — sar verificarea HTTP.");
+            _logger.LogWarning("Connectivity: BackendUrl is missing — skipping HTTP check.");
             return;
         }
 
         if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var root))
         {
-            _logger.LogWarning("Connectivity: BackendUrl nu e un URL absolut valid: {Url}", baseUrl);
+            _logger.LogWarning("Connectivity: BackendUrl is not a valid absolute URL: {Url}", baseUrl);
             return;
         }
 
@@ -88,7 +88,7 @@ public sealed class StartupConnectivityHostedService : IHostedService
             else
             {
                 _logger.LogWarning(
-                    "Connectivity: backend a răspuns cu {Status} la {Url}.",
+                    "Connectivity: backend returned {Status} for {Url}.",
                     (int)response.StatusCode,
                     healthUrl);
             }
@@ -97,7 +97,7 @@ public sealed class StartupConnectivityHostedService : IHostedService
         {
             _logger.LogError(
                 ex,
-                "Connectivity: nu pot ajunge la backend {Url}. Cu WireGuard.Enabled=false testează aceeași adresă din browser/curl.",
+                "Connectivity: cannot reach backend {Url}. With WireGuard.Enabled=false, try the same URL in a browser or curl.",
                 healthUrl);
         }
     }
