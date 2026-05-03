@@ -2,15 +2,15 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.11.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
+  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.12.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
     <MajorUpgrade DowngradeErrorMessage="A newer version of URS Printer Agent is already installed." />
 
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
     <!-- WixUI + checkbox Exit: pornește Configuratorul (WixShellExec din Util). -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Pornește Configuratorul acum (cod înrolare și imprimante)" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="După salvare în Configurator: în Services (services.msc) reporniți «URS Printer Agent». Dacă este oprit, apăsați Start — altfel enroll nu rulează și RestaurantId rămâne necompletat în agent.json." />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.ExitLaunchConfiguratorCheckbox)" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="!(loc.ExitLaunchConfiguratorText)" />
 
     <!-- Tip 18: rulează EXE-ul deja instalat; fără WixUtil / WixShellExec. -->
     <CustomAction Id="LaunchConfigurator"
@@ -44,6 +44,11 @@
     <!-- Tell WiX where to install -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="URSPrinterAgent" />
+    </StandardDirectory>
+
+    <!-- Start Menu folder (per-user). WiX v4 StandardDirectory does not expose CommonProgramMenuFolder. -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AGENTSTARTMENUDIR" Name="URS Printer Agent" />
     </StandardDirectory>
 
     <!-- Runtime config lives here; seed on first install only (NeverOverwrite) so upgrades refresh the EXE-side template, not operator data. -->
@@ -120,6 +125,24 @@
                     Advertise="no"
                     Description="Scan LAN for port 9100 and edit agent.json (EnrollmentCode, printers)." />
         </File>
+      </Component>
+
+      <!-- Start Menu shortcut (per-user to satisfy ICE rules). -->
+      <Component Id="ConfiguratorStartMenuShortcut" Guid="8d52d087-20e4-4dcb-9b89-5b42b1b34f3c" Directory="AGENTSTARTMENUDIR" Bitness="always64">
+        <CreateFolder />
+        <Shortcut Id="ConfiguratorStartMenuShortcutLink"
+                  Name="URS Printer Agent Configurator"
+                  Target="[INSTALLFOLDER]PrinterAgent.Configurator.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Advertise="no"
+                  Description="Enroll agent and configure printers." />
+        <RemoveFolder Id="RemoveAgentStartMenuDir" On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\U.R.S.\URSPrinterAgent"
+                       Name="StartMenuShortcut"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
       </Component>
       
     </ComponentGroup>

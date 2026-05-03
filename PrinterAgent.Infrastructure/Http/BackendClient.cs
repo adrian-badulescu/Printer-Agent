@@ -32,6 +32,18 @@ public class BackendClient : IBackendClient
         return null;
     }
 
+    public async Task<string?> GetWireGuardConfAsync(string agentId, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/agents/{Uri.EscapeDataString(agentId)}/wireguard-conf";
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        var code = (int)response.StatusCode;
+        if (code == 401 || code == 403 || code == 404)
+            return null;
+        if (!response.IsSuccessStatusCode)
+            return null;
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public async Task<Stream> DownloadAsync(Uri url, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -42,12 +54,30 @@ public class BackendClient : IBackendClient
     public async Task<bool> SendHeartbeatAsync(AgentInfo agentInfo, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/agents/heartbeat", agentInfo, cancellationToken);
-        // Auth rejected: do not throw — HeartbeatService clears session and operator can re-enroll.
         var code = (int)response.StatusCode;
-        if (code == 401 || code == 403)
+        // Treat any auth/validation-style rejection as "not ok", so HeartbeatService can clear session
+        // and attempt a recovery path (re-enroll).
+        if (code is 400 or 401 or 403)
             return false;
         response.EnsureSuccessStatusCode();
         return true;
+    }
+
+    public async Task<AgentEnrollResponse?> EnrollAsync(
+        string enrollmentCode,
+        Guid clientInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync(
+            "api/agents/enroll",
+            new { EnrollmentCode = enrollmentCode, ClientInstanceId = clientInstanceId },
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        // Backend uses camelCase; our DTO properties are PascalCase but System.Text.Json is case-insensitive by default.
+        return await response.Content.ReadFromJsonAsync<AgentEnrollResponse>(cancellationToken: cancellationToken);
     }
 
     public async Task UpdateJobStatusAsync(string jobId, PrintJobStatus status, CancellationToken cancellationToken = default)

@@ -1,6 +1,5 @@
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Observability;
@@ -12,11 +11,16 @@ public class EscPosPrinterService : IPrinterService
 {
     private readonly ILogger<EscPosPrinterService> _logger;
     private readonly IAppConfiguration _appConfiguration;
+    private readonly IPrinterMacCapture _macCapture;
 
-    public EscPosPrinterService(ILogger<EscPosPrinterService> logger, IAppConfiguration appConfiguration)
+    public EscPosPrinterService(
+        ILogger<EscPosPrinterService> logger,
+        IAppConfiguration appConfiguration,
+        IPrinterMacCapture macCapture)
     {
         _logger = logger;
         _appConfiguration = appConfiguration;
+        _macCapture = macCapture;
     }
 
     public async Task<bool> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default)
@@ -45,6 +49,7 @@ public class EscPosPrinterService : IPrinterService
                     throw new TimeoutException(
                         $"Connect to {printer.IpAddress}:{printer.Port} exceeded {connectTimeout.TotalSeconds}s.");
                 }
+
                 using var stream = client.GetStream();
 
                 var escPosData = RenderReceipt(job);
@@ -52,6 +57,10 @@ public class EscPosPrinterService : IPrinterService
                 await stream.FlushAsync(cancellationToken);
 
                 _logger.LogInformation("Job {JobId} printed successfully to {PrinterName}.", job.RedisMessageId, printer.Name);
+
+                await _macCapture.TryPersistMacAfterSuccessfulPrintAsync(printer.Id, printer.IpAddress, cancellationToken)
+                    .ConfigureAwait(false);
+
                 return true;
             }
             catch (OperationCanceledException)
@@ -82,9 +91,23 @@ public class EscPosPrinterService : IPrinterService
 
         bw.Write(new byte[] { 0x1B, 0x40 });
 
+        var kind = (job.Payload.Type ?? string.Empty).Trim().ToLowerInvariant();
+        if (kind == "bill")
+        {
+            RenderBill(bw, job);
+        }
+        else
+        {
+            RenderOrder(bw, job);
+        }
+
+        return ms.ToArray();
+    }
+
+    private static void RenderOrder(BinaryWriter bw, PrintJob job)
+    {
         bw.Write(new byte[] { 0x1B, 0x61, 0x01 });
         bw.Write(Encoding.ASCII.GetBytes($"*** ORDER {job.Payload.OrderId} ***\n\n"));
-
         bw.Write(new byte[] { 0x1B, 0x61, 0x00 });
 
         foreach (var item in job.Payload.Items)
@@ -95,7 +118,79 @@ public class EscPosPrinterService : IPrinterService
 
         bw.Write(Encoding.ASCII.GetBytes("\n\n"));
         bw.Write(new byte[] { 0x1D, 0x56, 0x41, 0x00 });
+    }
 
-        return ms.ToArray();
+    private static void RenderBill(BinaryWriter bw, PrintJob job)
+    {
+        static string SafeAscii(string? s)
+        {
+            if (string.IsNullOrWhiteSpace(s))
+                return string.Empty;
+            return new string(s.Select(c => c <= 127 ? c : '?').ToArray());
+        }
+
+        static string[] UrsAsciiArt()
+        {
+            return
+            [
+                " _   _   ____    ____ ",
+                "| | | | |  _ \\  / ___|",
+                "| |_| | | |_) | \\___ \\",
+                "|  _  | |  _ <   ___) |",
+                "|_| |_| |_| \\_\\ |____/ ",
+            ];
+        }
+
+        var restaurantName = SafeAscii(job.Payload.RestaurantName);
+        var tableName = SafeAscii(job.Payload.TableName);
+        var currency = SafeAscii(job.Payload.Currency);
+        var paymentMethod = SafeAscii(job.Payload.PaymentMethod);
+
+        bw.Write(new byte[] { 0x1B, 0x61, 0x01 });
+        foreach (var line in UrsAsciiArt())
+            bw.Write(Encoding.ASCII.GetBytes(line + "\n"));
+        bw.Write(Encoding.ASCII.GetBytes("\n"));
+        bw.Write(Encoding.ASCII.GetBytes("NOTA DE PLATA (NEFISCALA)\n"));
+        if (!string.IsNullOrWhiteSpace(restaurantName))
+            bw.Write(Encoding.ASCII.GetBytes($"{restaurantName}\n"));
+        bw.Write(Encoding.ASCII.GetBytes("\n"));
+        bw.Write(new byte[] { 0x1B, 0x61, 0x00 });
+
+        bw.Write(Encoding.ASCII.GetBytes($"Comanda: {SafeAscii(job.Payload.OrderId)}\n"));
+        if (!string.IsNullOrWhiteSpace(tableName))
+            bw.Write(Encoding.ASCII.GetBytes($"Masa: {tableName}\n"));
+
+        if (job.Payload.ClosedAtUtc is { } closedAt)
+            bw.Write(Encoding.ASCII.GetBytes($"Data: {closedAt:yyyy-MM-dd HH:mm} UTC\n"));
+
+        if (!string.IsNullOrWhiteSpace(paymentMethod))
+            bw.Write(Encoding.ASCII.GetBytes($"Plata: {paymentMethod}\n"));
+
+        bw.Write(Encoding.ASCII.GetBytes("--------------------------------\n"));
+
+        decimal computed = 0m;
+        foreach (var item in job.Payload.Items)
+        {
+            var unit = item.UnitPrice ?? item.Price;
+            var lineTotal = unit * item.Quantity;
+            computed += lineTotal;
+
+            bw.Write(Encoding.ASCII.GetBytes($"{item.Quantity}x {SafeAscii(item.Name)}\n"));
+            var right = string.IsNullOrWhiteSpace(currency)
+                ? lineTotal.ToString("F2")
+                : $"{lineTotal:F2} {currency}";
+            bw.Write(Encoding.ASCII.GetBytes(right.PadLeft(32) + "\n"));
+        }
+
+        bw.Write(Encoding.ASCII.GetBytes("--------------------------------\n"));
+
+        var final = job.Payload.FinalTotal ?? computed;
+        var finalStr = string.IsNullOrWhiteSpace(currency)
+            ? final.ToString("F2")
+            : $"{final:F2} {currency}";
+        bw.Write(Encoding.ASCII.GetBytes(("TOTAL: " + finalStr).PadLeft(32) + "\n"));
+
+        bw.Write(Encoding.ASCII.GetBytes("\n\n"));
+        bw.Write(new byte[] { 0x1D, 0x56, 0x41, 0x00 });
     }
 }

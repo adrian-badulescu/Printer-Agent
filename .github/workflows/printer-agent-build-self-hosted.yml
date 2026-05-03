@@ -1,0 +1,87 @@
+# Build + zip on YOUR machine (GitHub self-hosted Windows runner), then publish to GitHub.
+#
+# Setup (once):
+#   Repo → Settings → Actions → Runners → New self-hosted runner → Windows → follow commands; keep run.cmd running.
+#
+# Triggers:
+#   - push to main/master: uploads a workflow artifact (ZIP). Artifacts expire per repo settings (default ~90 days).
+#   - push tag v* (e.g. v1.0.13): same + attaches URSPrinterAgent-Windows.zip to that GitHub Release (stable URL:
+#       https://github.com/OWNER/REPO/releases/download/TAG/URSPrinterAgent-Windows.zip
+#     or use a fixed asset name on "latest" release if you manage releases manually).
+#   - workflow_dispatch: manual run from Actions tab.
+#
+# Requirements on the runner: Git, .NET 10 SDK, Windows PowerShell. WiX comes via NuGet (WixToolset.Sdk) on dotnet build.
+# The runner account must be allowed to create certs in Cert:\CurrentUser\My (normal logged-in user is fine).
+#
+# MSIs are signed with a self-signed code-signing cert (CN=URS Printer Agent Self-Signed) created in CurrentUser\My
+# on first build (-p:SelfSignedMsiSigning=true). For a public-trusted cert, build with -p:SelfSignedMsiSigning=false
+# and install your CN=U.R.S. cert, or use -p:SkipMsiSigning=true to skip signing entirely.
+
+name: Printer Agent build (self-hosted)
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: printer-agent-self-hosted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # If you have several self-hosted runners, keep "Windows" so only the Windows machine picks this job.
+    runs-on: [self-hosted, Windows]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build WiX installer
+        run: dotnet build PrinterAgent.Installer/PrinterAgent.Installer.wixproj -c Release -p:SelfSignedMsiSigning=true
+
+      - name: Zip MSI and CAB files
+        shell: powershell
+        run: |
+          $msi = Get-ChildItem -Path PrinterAgent.Installer -Recurse -Filter *.msi |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $msi) {
+            throw "No .msi found under PrinterAgent.Installer. Build may have failed or paths changed."
+          }
+          $dir = $msi.Directory.FullName
+          $files = @(
+            Get-ChildItem -LiteralPath $dir -Filter *.msi -File -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath $dir -Filter *.cab -File -ErrorAction SilentlyContinue
+          )
+          if ($files.Count -eq 0) {
+            throw "No MSI/CAB files in $dir"
+          }
+          $zip = Join-Path $env:GITHUB_WORKSPACE "URSPrinterAgent-Windows.zip"
+          if (Test-Path -LiteralPath $zip) {
+            Remove-Item -LiteralPath $zip -Force
+          }
+          Compress-Archive -Path ($files | ForEach-Object { $_.FullName }) -DestinationPath $zip -Force
+          Get-Item -LiteralPath $zip | Format-List FullName, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: URSPrinterAgent-Windows
+          path: URSPrinterAgent-Windows.zip
+
+      - name: Upload release asset (tag v* only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: URSPrinterAgent-Windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

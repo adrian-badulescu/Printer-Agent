@@ -1,0 +1,23 @@
+<Project Sdk="WixToolset.Sdk/4.0.0">
+  <PropertyGroup>
+    <OutputName>URSPrinterAgentSetup</OutputName>
+    <OutputType>Bundle</OutputType>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Do not treat our runtime thm.wxl payloads as compile-time localization inputs. -->
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <DefineConstants>$(DefineConstants)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ensure MSI gets built before bundle. -->
+    <ProjectReference Include="..\PrinterAgent.Installer\PrinterAgent.Installer.wixproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="4.0.6" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="4.0.6" />
+  </ItemGroup>
+
+  <!-- Theme localization is resolved at runtime from payloads (1033\thm.wxl etc.). -->
+</Project>

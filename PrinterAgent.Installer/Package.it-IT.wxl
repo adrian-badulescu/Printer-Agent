@@ -1,0 +1,6 @@
+<WixLocalization Culture="it-IT" Language="1040" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <!-- Custom MSI strings -->
+  <String Id="ExitLaunchConfiguratorCheckbox" Value="Avvia Configurator ora (codice di registrazione e stampanti)" />
+  <String Id="ExitLaunchConfiguratorText" Value="Dopo il salvataggio in Configurator: in Servizi (services.msc) riavvia “URS Printer Agent”. Se è arrestato, fai clic su Avvia — altrimenti la registrazione non verrà eseguita e RestaurantId resterà vuoto in agent.json." />
+</WixLocalization>
+

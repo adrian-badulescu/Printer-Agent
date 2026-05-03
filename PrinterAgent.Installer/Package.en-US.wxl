@@ -1,0 +1,6 @@
+<WixLocalization Culture="en-US" Language="1033" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <!-- Custom MSI strings -->
+  <String Id="ExitLaunchConfiguratorCheckbox" Value="Launch Configurator now (enrollment code and printers)" />
+  <String Id="ExitLaunchConfiguratorText" Value="After saving in Configurator: in Services (services.msc) restart “URS Printer Agent”. If it is stopped, click Start — otherwise enrollment will not run and RestaurantId will remain empty in agent.json." />
+</WixLocalization>
+

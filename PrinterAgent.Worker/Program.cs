@@ -1,11 +1,14 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Infrastructure.Http;
 using PrinterAgent.Infrastructure.Persistence;
+using PrinterAgent.Infrastructure.Networking;
 using PrinterAgent.Infrastructure.Printing;
 using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Infrastructure.System;
@@ -46,9 +49,13 @@ try
             // Tunel WireGuard (opțional) înainte de Redis / enroll / AgentWorker
             services.AddHostedService<WireGuardTunnelHostedService>();
             services.AddHostedService<StartupConnectivityHostedService>();
+            services.AddHostedService<PrinterStartupRecoveryHostedService>();
 
             services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
             services.AddSingleton<IAgentSessionRenewalService, AgentSessionRenewalService>();
+            services.AddSingleton<IAgentPrinterConfigurationUpdater, AgentPrinterConfigurationUpdater>();
+            services.AddSingleton<IPrinterDiscoveryService, PrinterDiscoveryService>();
+            services.AddSingleton<IPrinterMacCapture, PrinterMacCaptureService>();
 
             services.AddHttpClient("PrinterAgentEnroll", (sp, client) =>
             {
@@ -85,6 +92,15 @@ try
             services.AddHostedService<AgentWorker>();
         })
         .Build();
+
+    var bootLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PrinterAgent.Worker");
+    var infraAsm = typeof(AgentSessionStore).Assembly;
+    var infraVer = infraAsm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                   ?? infraAsm.GetName().Version?.ToString()
+                   ?? "?";
+    bootLogger.LogInformation(
+        "Bootstrap: PrinterAgent.Infrastructure={InfraVersion}. Session IO uses File.Replace + retry (if logs still show File.Create, the installed DLL is outdated).",
+        infraVer);
 
     await host.RunAsync();
 }

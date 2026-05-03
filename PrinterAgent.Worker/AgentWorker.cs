@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
+using System.Linq;
 
 namespace PrinterAgent.Worker;
 
@@ -52,6 +53,20 @@ public class AgentWorker : BackgroundService
             return;
 
         _logger.LogInformation("Agent Worker starting. AgentId: {AgentId}, RestaurantId: {RestaurantId}", agentId, restaurantId);
+
+        var printerCount = _appConfiguration.Printers.Count;
+        if (printerCount == 0)
+        {
+            _logger.LogWarning(
+                "No printers in merged agent.json — jobs will fail until Printers[] is configured. Edit %ProgramData%\\URSPrinterAgent\\agent.json or run Configurator; restart the service after saving.");
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Printers loaded: {Count} — Ids: [{PrinterIds}]",
+                printerCount,
+                string.Join(", ", _appConfiguration.Printers.Select(p => p.Id)));
+        }
 
         _ = RunRedisConsumerSafelyAsync(restaurantId, stoppingToken);
 

@@ -1,0 +1,30 @@
+<WixLocalization Culture="ro-ro" Language="1048" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Id="Caption" Value="[WixBundleName] Setup [WixBundleVersion]" />
+  <String Id="Title" Value="[WixBundleName]" />
+  <String Id="HelpHeader" Value="Ajutor instalare" />
+  <String Id="HelpText" Value="/install | /repair | /uninstall | /layout [director] - instalează, repară, dezinstalează sau&#xA;   creează o copie locală completă a pachetului în director. Install este implicit.&#xA;&#xA;/passive | /quiet - afișează UI minim fără prompt-uri sau nu afișează UI și&#xA;   fără prompt-uri. Implicit se afișează UI complet și toate prompt-urile.&#xA;&#xA;/norestart   - suprimă orice restart. Implicit UI va cere confirmare înainte de restart.&#xA;/log log.txt - scrie log într-un fișier specific. Implicit log-ul este creat în %TEMP%." />
+  <String Id="HelpCloseButton" Value="&amp;Închide" />
+  <String Id="InstallHeader" Value="Bun venit!" />
+  <String Id="InstallMessage" Value="Instalarea va instala [WixBundleName] pe acest computer. Închideți celelalte aplicații înainte de instalare." />
+  <String Id="InstallInstallButton" Value="&amp;Instalează" />
+  <String Id="InstallCancelButton" Value="&amp;Închide" />
+  <String Id="ProgressHeader" Value="Progres instalare" />
+  <String Id="ProgressLabel" Value="Se procesează:" />
+  <String Id="OverallProgressPackageText" Value="Se inițializează..." />
+  <String Id="ProgressCancelButton" Value="&amp;Anulează" />
+  <String Id="ModifyHeader" Value="Modifică instalarea" />
+  <String Id="ModifyRepairButton" Value="&amp;Repară" />
+  <String Id="ModifyUninstallButton" Value="&amp;Dezinstalează" />
+  <String Id="ModifyCancelButton" Value="&amp;Închide" />
+  <String Id="SuccessHeader" Value="Instalare reușită" />
+  <String Id="SuccessInstallHeader" Value="Instalarea s-a finalizat cu succes" />
+  <String Id="SuccessModifyHeader" Value="Modificarea s-a finalizat cu succes" />
+  <String Id="SuccessRepairHeader" Value="Repararea s-a finalizat cu succes" />
+  <String Id="SuccessUninstallHeader" Value="Dezinstalarea s-a finalizat" />
+  <String Id="SuccessInstallMessage" Value="Puteți deschide acum URS Printer Agent Configurator din Start Menu pentru înrolare și configurarea imprimantelor." />
+  <String Id="SuccessCloseButton" Value="&amp;Închide" />
+  <String Id="FailureHeader" Value="Instalare eșuată" />
+  <String Id="FailureHyperlinkLogText" Value="&lt;a href=&quot;#&quot;&gt;Pentru mai multe informații, vedeți fișierul de log.&lt;/a&gt;" />
+  <String Id="FailureCloseButton" Value="&amp;Închide" />
+</WixLocalization>
+

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -29,8 +30,33 @@ public partial class MainWindow
         Loaded += MainWindow_OnLoaded;
     }
 
+    /// <summary>Configurator save replaces the printer JSON object; copy metadata written by the Worker (MAC, recovery notes).</summary>
+    private static void MergePreservedPrinterMetadata(JsonObject? previous, JsonObject next)
+    {
+        if (previous == null)
+            return;
+
+        static string? Str(JsonObject o, string camel, string pascal) =>
+            o[camel]?.GetValue<string>() ?? o[pascal]?.GetValue<string>();
+
+        var mac = Str(previous, "macAddress", "MacAddress");
+        if (!string.IsNullOrWhiteSpace(mac))
+            next["macAddress"] = mac.Trim();
+
+        if (previous["fallbackProvisional"] is JsonValue fb && fb.TryGetValue(out bool b))
+            next["fallbackProvisional"] = b;
+        else if (previous["FallbackProvisional"] is JsonValue fb2 && fb2.TryGetValue(out bool b2))
+            next["fallbackProvisional"] = b2;
+
+        var note = Str(previous, "lastDiscoveryNote", "LastDiscoveryNote");
+        if (!string.IsNullOrWhiteSpace(note))
+            next["lastDiscoveryNote"] = note;
+    }
+
     private void MainWindow_OnLoaded(object sender, RoutedEventArgs e)
     {
+        ApplyUiStrings();
+
         try
         {
             var root = _store.LoadOrCreateTemplate();
@@ -40,7 +66,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            FooterStatusText.Text = $"Nu s-a putut citi agent.json: {ex.Message}";
+            FooterStatusText.Text = UiStrings.Format("ReadAgentJsonFailed", ex.Message);
         }
 
         var nics = LocalSubnetService.GetIpv4SubnetOptions();
@@ -52,6 +78,46 @@ public partial class MainWindow
         UpdateStepUi();
     }
 
+    private void ApplyAgentJsonPathText()
+    {
+        AgentJsonPathText.Text =
+            UiStrings.Get("AgentJsonPath_Label") + Environment.NewLine + _store.AgentJsonPath;
+    }
+
+    private void ApplyUiStrings()
+    {
+        Title = UiStrings.Get("WindowTitle");
+
+        BackButton.Content = UiStrings.Get("BackButton");
+        ScanButton.Content = UiStrings.Get("ScanButton");
+        TestPrintButton.Content = UiStrings.Get("TestPrintButton");
+        SuggestIdButton.Content = UiStrings.Get("RegenerateIdButton");
+        OpenProgramDataButton.Content = UiStrings.Get("OpenProgramDataButton");
+        RefreshIpButton.Content = UiStrings.Get("RefreshIp_Button");
+        AddAnotherPrinterButton.Content = UiStrings.Get("AddAnotherPrinterButton");
+
+        Step1TitleText.Text = UiStrings.Get("Step1_Title");
+        Step1DescriptionText.Text = UiStrings.Get("Step1_Description");
+        EnrollmentCodeLabel.Content = UiStrings.Get("EnrollmentCode_Label");
+        EnrollmentHintText.Text = UiStrings.Get("EnrollmentCode_Hint");
+        ApplyAgentJsonPathText();
+
+        Step2TitleText.Text = UiStrings.Get("Step2_Title");
+        Step2DescriptionText.Text = UiStrings.Get("Step2_Description");
+        NicLabel.Content = UiStrings.Get("Nic_Label");
+        ScanConsentText.Text = UiStrings.Get("ScanConsent_Text");
+        FoundHostsLabel.Content = UiStrings.Get("FoundHosts_Label");
+
+        Step3TitleText.Text = UiStrings.Get("Step3_Title");
+        PrinterNameLabel.Content = UiStrings.Get("PrinterName_Label");
+        PrinterIdLabel.Content = UiStrings.Get("PrinterId_Label");
+        PortLabel.Content = UiStrings.Get("Port_Label");
+        SaveHintText.Text = UiStrings.Get("SaveHintText");
+
+        Step4TitleText.Text = UiStrings.Get("Step4_Title");
+        DoneHintText.Text = UiStrings.Get("DoneHintText");
+    }
+
     private void UpdateStepUi()
     {
         StepEnrollmentPanel.Visibility = _step == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -61,15 +127,15 @@ public partial class MainWindow
 
         BackButton.IsEnabled = _step is > 0 and < 3;
         NextButton.IsEnabled = true;
-        NextButton.Content = _step == 2 ? "Salvează" : _step == 3 ? "Închide" : "Înainte";
+        NextButton.Content = _step == 2 ? UiStrings.Get("SaveButton") : _step == 3 ? UiStrings.Get("CloseButton") : UiStrings.Get("NextButton");
         NextButton.IsDefault = _step != 3;
 
         FooterStatusText.Text = _step switch
         {
-            0 => "Pas 1/4 — cod înrolare",
-            1 => "Pas 2/4 — scan rețea locală",
-            2 => "Pas 3/4 — imprimantă",
-            3 => "Pas 4/4 — finalizare",
+            0 => UiStrings.Get("Footer_Step1"),
+            1 => UiStrings.Get("Footer_Step2"),
+            2 => UiStrings.Get("Footer_Step3"),
+            3 => UiStrings.Get("Footer_Step4"),
             _ => ""
         };
 
@@ -106,8 +172,8 @@ public partial class MainWindow
             {
                 MessageBox.Show(
                     this,
-                    "Codul de înrolare trebuie să aibă 6–32 caractere alfanumerice (fără spații).",
-                    "Validare",
+                    UiStrings.Get("Validation_EnrollmentCode"),
+                    UiStrings.Get("Validation_Title"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
@@ -201,20 +267,27 @@ public partial class MainWindow
             var printers = root["Printers"] as JsonArray ?? new JsonArray();
             root["Printers"] = printers;
 
+            JsonObject? replaced = null;
             for (var i = printers.Count - 1; i >= 0; i--)
             {
-                var id = printers[i]?["Id"]?.GetValue<string>();
+                var id = printers[i]?["id"]?.GetValue<string>() ?? printers[i]?["Id"]?.GetValue<string>();
                 if (string.Equals(id, pid, StringComparison.OrdinalIgnoreCase))
+                {
+                    replaced = printers[i] as JsonObject;
                     printers.RemoveAt(i);
+                    break;
+                }
             }
 
-            printers.Add(new JsonObject
+            var entry = new JsonObject
             {
-                ["Id"] = pid,
-                ["Name"] = name,
-                ["IpAddress"] = _selectedHost.ToString(),
-                ["Port"] = port
-            });
+                ["id"] = pid,
+                ["name"] = name,
+                ["ipAddress"] = _selectedHost.ToString(),
+                ["port"] = port
+            };
+            MergePreservedPrinterMetadata(replaced, entry);
+            printers.Add(entry);
 
             await Task.Run(() => _store.Save(root)).ConfigureAwait(true);
 
@@ -337,7 +410,7 @@ public partial class MainWindow
             {
                 foreach (var p in arr)
                 {
-                    var id = p?["Id"]?.GetValue<string>();
+                    var id = p?["id"]?.GetValue<string>() ?? p?["Id"]?.GetValue<string>();
                     if (!string.IsNullOrWhiteSpace(id))
                         existing.Add(id);
                 }
@@ -399,6 +472,28 @@ public partial class MainWindow
         finally
         {
             TestPrintButton.IsEnabled = true;
+        }
+    }
+
+    private async void RefreshIpButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        RefreshIpButton.IsEnabled = false;
+        FooterStatusText.Text = UiStrings.Get("RefreshIp_Running");
+        try
+        {
+            var (ok, msg) = await PrinterIpRefreshService.TryRefreshAllPrintersAsync().ConfigureAwait(true);
+            MessageBox.Show(
+                this,
+                msg,
+                UiStrings.Get("RefreshIp_Title"),
+                MessageBoxButton.OK,
+                ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            ApplyAgentJsonPathText();
+        }
+        finally
+        {
+            RefreshIpButton.IsEnabled = true;
+            UpdateStepUi();
         }
     }
 

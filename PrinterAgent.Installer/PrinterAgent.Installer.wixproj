@@ -4,10 +4,15 @@
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Build 2 MSIs: en-US (default) and it-IT -->
+    <Cultures>en-US;it-IT</Cultures>
     <!-- Pass the publish directory to Package.wxs as a preprocessor variable -->
     <WorkerPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\bin\$(Configuration)\net10.0\win-x64\publish\'))</WorkerPublishDir>
     <ConfiguratorPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\bin\$(Configuration)\net10.0-windows\win-x64\publish\'))</ConfiguratorPublishDir>
     <DefineConstants>WorkerPublishDir=$(WorkerPublishDir);ConfiguratorPublishDir=$(ConfiguratorPublishDir)</DefineConstants>
+    <!-- SelfSignedMsiSigning=true: SignMsi.ps1 creates/reuses CN=URS Printer Agent Self-Signed (CurrentUser\My). -->
+    <MsiSigningMode Condition="'$(SelfSignedMsiSigning)' == 'true'">SelfSigned</MsiSigningMode>
+    <MsiSigningMode Condition="'$(MsiSigningMode)' == ''">Enterprise</MsiSigningMode>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,13 +25,22 @@
     <PackageReference Include="WixToolset.Util.wixext" Version="4.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <WixLocalization Include="Package.en-US.wxl" />
+    <WixLocalization Include="Package.it-IT.wxl" />
+  </ItemGroup>
+
   <!-- Publish worker + configurator before building the MSI (Configurator must not block MSI; runs as separate EXE after install). -->
   <Target Name="PublishAgentProjects" BeforeTargets="Build">
     <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\PrinterAgent.Worker.csproj&quot; -c $(Configuration)" />
     <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\PrinterAgent.Configurator.csproj&quot; -c $(Configuration)" />
   </Target>
 
-  <Target Name="SignMsi" AfterTargets="Build">
-    <Exec Command="powershell -Command &quot;Set-AuthenticodeSignature -FilePath '$(TargetPath)' -Certificate (Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'CN=U.R.S.' } | Select-Object -First 1)&quot;" />
+  <!-- SkipMsiSigning=true skips signing. Otherwise SignMsi.ps1 runs once per MSI (TargetPath splits on ';'). -->
+  <Target Name="SignMsi" AfterTargets="Build" Condition="'$(SkipMsiSigning)' != 'true'">
+    <ItemGroup>
+      <_SignableMsi Include="$(TargetPath)" />
+    </ItemGroup>
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)SignMsi.ps1&quot; -MsiPath &quot;%(_SignableMsi.Identity)&quot; -Mode $(MsiSigningMode)" />
   </Target>
 </Project>

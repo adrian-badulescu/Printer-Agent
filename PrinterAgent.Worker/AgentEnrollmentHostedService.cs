@@ -3,8 +3,10 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
+using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
 
@@ -13,10 +15,13 @@ namespace PrinterAgent.Worker;
 /// </summary>
 public sealed class AgentEnrollmentHostedService : IHostedService
 {
+    private static readonly Random Jitter = new();
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAgentSessionStore _sessionStore;
     private readonly IAgentSessionRenewalService _sessionRenewal;
     private readonly IAppConfiguration _appConfiguration;
+    private readonly IBackendClient _backendClient;
+    private readonly IOptions<WireGuardOptions> _wireGuardOptions;
     private readonly ILogger<AgentEnrollmentHostedService> _logger;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -26,12 +31,16 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         IAgentSessionStore sessionStore,
         IAgentSessionRenewalService sessionRenewal,
         IAppConfiguration appConfiguration,
+        IBackendClient backendClient,
+        IOptions<WireGuardOptions> wireGuardOptions,
         ILogger<AgentEnrollmentHostedService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _sessionStore = sessionStore;
         _sessionRenewal = sessionRenewal;
         _appConfiguration = appConfiguration;
+        _backendClient = backendClient;
+        _wireGuardOptions = wireGuardOptions;
         _logger = logger;
     }
 
@@ -107,6 +116,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                     return;
 
                 // Enrollment failed but did not throw; wait and retry (covers transient errors and 401 when code was wrong).
+                // 429 backoff is handled inside TryEnrollOnceAsync via a local delay.
                 await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -134,7 +144,11 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
-            _logger.LogWarning("Enrollment rejected (429); will retry later.");
+            var delay = Compute429Backoff(response);
+            _logger.LogWarning(
+                "Enrollment rejected (429); backing off for {DelaySeconds:F0}s then retrying.",
+                delay.TotalSeconds);
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
             return false;
         }
 
@@ -144,6 +158,14 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
+                if (CanContinueWithRefreshOnly())
+                {
+                    _logger.LogWarning(
+                        "Enrollment rejected (401): {Body}. Refresh token exists; continuing without re-enrollment (heartbeat will keep refreshing).",
+                        err);
+                    return true;
+                }
+
                 _logger.LogWarning(
                     "Enrollment rejected (401): {Body}. The code may be invalid/expired or issued for a different backend/DB/pepper. Waiting for a new code.",
                     err);
@@ -175,7 +197,78 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             .ConfigureAwait(false);
 
         _logger.LogInformation("Enrollment succeeded for agentId {AgentId}.", payload.AgentId);
+
+        await TryProvisionWireGuardConfAsync(payload.AgentId, cancellationToken).ConfigureAwait(false);
         return true;
+    }
+
+    private static TimeSpan Compute429Backoff(HttpResponseMessage response)
+    {
+        // Prefer server-provided Retry-After when present.
+        try
+        {
+            var ra = response.Headers.RetryAfter;
+            if (ra?.Delta != null)
+                return Clamp(ra.Delta.Value);
+            if (ra?.Date != null)
+            {
+                var delta = ra.Date.Value - DateTimeOffset.UtcNow;
+                if (delta > TimeSpan.Zero)
+                    return Clamp(delta);
+            }
+        }
+        catch
+        {
+            // ignore header parse issues
+        }
+
+        // Fallback: modest randomized delay to avoid stampeding.
+        var seconds = 30 + Jitter.Next(0, 30); // 30–59s
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    private static TimeSpan Clamp(TimeSpan value)
+    {
+        if (value < TimeSpan.FromSeconds(5))
+            return TimeSpan.FromSeconds(5);
+        if (value > TimeSpan.FromMinutes(5))
+            return TimeSpan.FromMinutes(5);
+        return value;
+    }
+
+    private async Task TryProvisionWireGuardConfAsync(string agentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var opt = _wireGuardOptions.Value;
+            if (!opt.Enabled)
+                return;
+
+            var path = opt.ConfigFilePath?.Trim();
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            var conf = await _backendClient.GetWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(conf))
+            {
+                _logger.LogWarning("WireGuard provisioning: backend did not return a .conf for agentId {AgentId}.", agentId);
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var existing = File.Exists(path) ? await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false) : null;
+            if (string.Equals(existing, conf, StringComparison.Ordinal))
+                return;
+
+            await File.WriteAllTextAsync(path, conf, cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation(
+                "WireGuard provisioning: wrote config to {Path}. Import it once in the WireGuard app to create/start the tunnel service.",
+                path);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WireGuard provisioning: failed to download/write .conf; continuing without blocking enrollment.");
+        }
     }
 
     /// <summary>

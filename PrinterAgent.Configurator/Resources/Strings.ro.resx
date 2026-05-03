@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="WindowTitle" xml:space="preserve">
+    <value>URS Printer Agent — Configurator</value>
+  </data>
+  <data name="LanguageLabel" xml:space="preserve">
+    <value>Limbă</value>
+  </data>
+  <data name="BackButton" xml:space="preserve">
+    <value>Înapoi</value>
+  </data>
+  <data name="NextButton" xml:space="preserve">
+    <value>Înainte</value>
+  </data>
+  <data name="SaveButton" xml:space="preserve">
+    <value>Salvează</value>
+  </data>
+  <data name="CloseButton" xml:space="preserve">
+    <value>Închide</value>
+  </data>
+  <data name="Step1_Title" xml:space="preserve">
+    <value>Configurare agent imprimantă</value>
+  </data>
+  <data name="Step1_Description" xml:space="preserve">
+    <value>Introduceți codul de înrolare (din manager). Acest cod este salvat în agent.json din ProgramData.</value>
+  </data>
+  <data name="EnrollmentCode_Label" xml:space="preserve">
+    <value>Cod înrolare (alfanumeric)</value>
+  </data>
+  <data name="EnrollmentCode_Hint" xml:space="preserve">
+    <value>6–32 caractere: litere și cifre.</value>
+  </data>
+  <data name="Step2_Title" xml:space="preserve">
+    <value>Rețea locală și scan port 9100</value>
+  </data>
+  <data name="Step2_Description" xml:space="preserve">
+    <value>Se folosește subnetul interfeței IPv4 selectate (același segment cu imprimanta). Scanarea este explicită: confirmați mai jos, apoi porniți scanul.</value>
+  </data>
+  <data name="Nic_Label" xml:space="preserve">
+    <value>Interfață de rețea (IPv4)</value>
+  </data>
+  <data name="ScanConsent_Text" xml:space="preserve">
+    <value>Înțeleg că vor fi trimise încercări TCP scurte către fiecare adresă din subnet pe portul 9100 (scan activ al rețelei locale).</value>
+  </data>
+  <data name="ScanButton" xml:space="preserve">
+    <value>Scanează portul 9100</value>
+  </data>
+  <data name="FoundHosts_Label" xml:space="preserve">
+    <value>Adrese cu port 9100 deschis</value>
+  </data>
+  <data name="Step3_Title" xml:space="preserve">
+    <value>Imprimantă și salvare</value>
+  </data>
+  <data name="PrinterName_Label" xml:space="preserve">
+    <value>Nume afișat</value>
+  </data>
+  <data name="PrinterId_Label" xml:space="preserve">
+    <value>PrinterId (stabil pentru joburi)</value>
+  </data>
+  <data name="Port_Label" xml:space="preserve">
+    <value>Port TCP</value>
+  </data>
+  <data name="TestPrintButton" xml:space="preserve">
+    <value>Test print</value>
+  </data>
+  <data name="RegenerateIdButton" xml:space="preserve">
+    <value>Regenerează ID din nume</value>
+  </data>
+  <data name="SaveHintText" xml:space="preserve">
+    <value>Salvarea actualizează EnrollmentCode și adaugă / înlocuiește imprimanta cu același PrinterId în agent.json.</value>
+  </data>
+  <data name="Step4_Title" xml:space="preserve">
+    <value>Gata</value>
+  </data>
+  <data name="OpenProgramDataButton" xml:space="preserve">
+    <value>Deschide folderul ProgramData (URSPrinterAgent)</value>
+  </data>
+  <data name="AddAnotherPrinterButton" xml:space="preserve">
+    <value>Adaugă o altă imprimantă (același subnet)</value>
+  </data>
+  <data name="DoneHintText" xml:space="preserve">
+    <value>Pentru două imprimante pe același LAN: salvezi prima, apoi „Adaugă o altă imprimantă”, scanezi din nou, alegi cealaltă adresă IP și un PrinterId diferit (ex. bucatarie-1, bar-1).</value>
+  </data>
+  <data name="Footer_Step1" xml:space="preserve">
+    <value>Pas 1/4 — cod înrolare</value>
+  </data>
+  <data name="Footer_Step2" xml:space="preserve">
+    <value>Pas 2/4 — scan rețea locală</value>
+  </data>
+  <data name="Footer_Step3" xml:space="preserve">
+    <value>Pas 3/4 — imprimantă</value>
+  </data>
+  <data name="Footer_Step4" xml:space="preserve">
+    <value>Pas 4/4 — finalizare</value>
+  </data>
+  <data name="Validation_Title" xml:space="preserve">
+    <value>Validare</value>
+  </data>
+  <data name="Validation_EnrollmentCode" xml:space="preserve">
+    <value>Codul de înrolare trebuie să aibă 6–32 caractere alfanumerice (fără spații).</value>
+  </data>
+  <data name="ReadAgentJsonFailed" xml:space="preserve">
+    <value>Nu s-a putut citi agent.json: {0}</value>
+  </data>
+</root>
+

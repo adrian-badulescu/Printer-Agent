@@ -84,7 +84,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
                         {
                             job.RedisMessageId = message.Id.ToString();
                             _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
-                            
+
                             await _printJobProcessor.ProcessJobAsync(job, cancellationToken);
                             
                             // Acknowledge the message

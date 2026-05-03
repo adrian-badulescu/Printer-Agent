@@ -1,0 +1,34 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+
+  <Bundle Name="URS Printer Agent"
+          Manufacturer="U.R.S."
+          Version="1.0.12.0"
+          UpgradeCode="d2f29b2b-8a2e-46c8-9ad5-8d29e61d2d31">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          ThemeFile="Resources\thm.xml"
+          SuppressOptionsUI="yes"
+          LicenseUrl="" />
+
+      <!-- ThemeFile auto-adds thm.xml; we only add per-language localizations. -->
+      <Payload Name="1033\thm.wxl" SourceFile="Resources\1033\thm.wxl" Compressed="yes" />
+      <Payload Name="1040\thm.wxl" SourceFile="Resources\1040\thm.wxl" Compressed="yes" />
+      <Payload Name="1036\thm.wxl" SourceFile="Resources\1036\thm.wxl" Compressed="yes" />
+      <Payload Name="3082\thm.wxl" SourceFile="Resources\3082\thm.wxl" Compressed="yes" />
+      <Payload Name="1031\thm.wxl" SourceFile="Resources\1031\thm.wxl" Compressed="yes" />
+      <Payload Name="1053\thm.wxl" SourceFile="Resources\1053\thm.wxl" Compressed="yes" />
+      <Payload Name="1048\thm.wxl" SourceFile="Resources\1048\thm.wxl" Compressed="yes" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <MsiPackage Id="UrsPrinterAgentMsi"
+                  SourceFile="$(var.PrinterAgent.Installer.TargetPath)"
+                  Compressed="yes"
+                  Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>
+

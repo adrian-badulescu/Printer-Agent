@@ -40,11 +40,11 @@
 
         <!-- Pas 0: cod enroll -->
         <StackPanel x:Name="StepEnrollmentPanel">
-          <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
+          <TextBlock x:Name="Step1TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
                      Text="Configurare agent imprimantă" />
-          <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Foreground="#444"
+          <TextBlock x:Name="Step1DescriptionText" TextWrapping="Wrap" Margin="0,0,0,16" Foreground="#444"
                      Text="Introduceți codul de înrolare (din manager). Acest cod este salvat în agent.json din ProgramData." />
-          <Label Content="Cod înrolare (alfanumeric)" Target="{Binding ElementName=EnrollmentCodeBox}" />
+          <Label x:Name="EnrollmentCodeLabel" Content="Cod înrolare (alfanumeric)" Target="{Binding ElementName=EnrollmentCodeBox}" />
           <TextBox x:Name="EnrollmentCodeBox"
                    MaxLength="32"
                    FontSize="15"
@@ -55,15 +55,21 @@
                      Foreground="#666"
                      FontSize="12"
                      Text="6–32 caractere: litere și cifre." />
+          <TextBlock x:Name="AgentJsonPathText"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas"
+                     FontSize="12"
+                     Foreground="#333"
+                     Margin="0,12,0,0" />
         </StackPanel>
 
         <!-- Pas 1: rețea + scan -->
         <StackPanel x:Name="StepNetworkPanel" Visibility="Collapsed">
-          <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
+          <TextBlock x:Name="Step2TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
                      Text="Rețea locală și scan port 9100" />
-          <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Foreground="#444"
+          <TextBlock x:Name="Step2DescriptionText" TextWrapping="Wrap" Margin="0,0,0,12" Foreground="#444"
                      Text="Se folosește subnetul interfeței IPv4 selectate (același segment cu imprimanta). Scanarea este explicită: confirmați mai jos, apoi porniți scanul." />
-          <Label Content="Interfață de rețea (IPv4)" Target="{Binding ElementName=NicCombo}" />
+          <Label x:Name="NicLabel" Content="Interfață de rețea (IPv4)" Target="{Binding ElementName=NicCombo}" />
           <ComboBox x:Name="NicCombo"
                     DisplayMemberPath="Description"
                     Margin="0,0,0,8"
@@ -75,7 +81,7 @@
                      Foreground="#222" />
           <CheckBox x:Name="ScanConsentCheckBox"
                     Margin="0,0,0,12">
-            <TextBlock TextWrapping="Wrap"
+            <TextBlock x:Name="ScanConsentText" TextWrapping="Wrap"
                        Text="Înțeleg că vor fi trimise încercări TCP scurte către fiecare adresă din subnet pe portul 9100 (scan activ al rețelei locale)." />
           </CheckBox>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -88,7 +94,7 @@
                        VerticalAlignment="Center"
                        Foreground="#555" />
           </StackPanel>
-          <Label Content="Adrese cu port 9100 deschis" Target="{Binding ElementName=FoundHostsList}" />
+          <Label x:Name="FoundHostsLabel" Content="Adrese cu port 9100 deschis" Target="{Binding ElementName=FoundHostsList}" />
           <ListBox x:Name="FoundHostsList"
                    MinHeight="140"
                    Margin="0,0,0,8"
@@ -97,23 +103,23 @@
 
         <!-- Pas 2: nume imprimantă + salvare -->
         <StackPanel x:Name="StepPrinterPanel" Visibility="Collapsed">
-          <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
+          <TextBlock x:Name="Step3TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
                      Text="Imprimantă și salvare" />
           <TextBlock x:Name="SelectedHostText"
                      TextWrapping="Wrap"
                      Margin="0,0,0,12"
                      FontWeight="SemiBold" />
-          <Label Content="Nume afișat" Target="{Binding ElementName=PrinterNameBox}" />
+          <Label x:Name="PrinterNameLabel" Content="Nume afișat" Target="{Binding ElementName=PrinterNameBox}" />
           <TextBox x:Name="PrinterNameBox"
                    Padding="8"
                    Margin="0,0,0,8"
                    TextChanged="PrinterNameBox_OnTextChanged" />
-          <Label Content="PrinterId (stabil pentru joburi)" Target="{Binding ElementName=PrinterIdBox}" />
+          <Label x:Name="PrinterIdLabel" Content="PrinterId (stabil pentru joburi)" Target="{Binding ElementName=PrinterIdBox}" />
           <TextBox x:Name="PrinterIdBox"
                    Padding="8"
                    Margin="0,0,0,8"
                    TextChanged="PrinterIdBox_OnTextChanged" />
-          <Label Content="Port TCP" Target="{Binding ElementName=PortBox}" />
+          <Label x:Name="PortLabel" Content="Port TCP" Target="{Binding ElementName=PortBox}" />
           <TextBox x:Name="PortBox"
                    Padding="8"
                    Margin="0,0,0,12"
@@ -138,24 +144,29 @@
 
         <!-- Pas 3: final -->
         <StackPanel x:Name="StepDonePanel" Visibility="Collapsed">
-          <TextBlock FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
+          <TextBlock x:Name="Step4TitleText" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,12"
                      Text="Gata" />
           <TextBlock x:Name="DoneMessageText"
                      TextWrapping="Wrap"
                      Margin="0,0,0,16"
                      Foreground="#444" />
           <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Deschide folderul ProgramData (URSPrinterAgent)"
+            <Button x:Name="OpenProgramDataButton" Content="Deschide folderul ProgramData (URSPrinterAgent)"
                     HorizontalAlignment="Left"
                     Padding="12,6"
                     Margin="0,0,8,0"
                     Click="OpenProgramDataFolder_OnClick" />
+            <Button x:Name="RefreshIpButton"
+                    Content="Refresh printer IPs"
+                    Padding="12,6"
+                    Margin="0,0,8,0"
+                    Click="RefreshIpButton_OnClick" />
             <Button x:Name="AddAnotherPrinterButton"
                     Content="Adaugă o altă imprimantă (același subnet)"
                     Padding="12,6"
                     Click="AddAnotherPrinterButton_OnClick" />
           </StackPanel>
-          <TextBlock TextWrapping="Wrap"
+          <TextBlock x:Name="DoneHintText" TextWrapping="Wrap"
                      Foreground="#666"
                      FontSize="12"
                      Text="Pentru două imprimante pe același LAN: salvezi prima, apoi „Adaugă o altă imprimantă”, scanezi din nou, alegi cealaltă adresă IP și un PrinterId diferit (ex. bucatarie-1, bar-1)." />

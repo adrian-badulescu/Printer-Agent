@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Observability;
@@ -16,6 +17,8 @@ public class PrintJobProcessor : IPrintJobProcessor
     private readonly IBackendClient _backendClient;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IAgentSessionStore _sessionStore;
+    private readonly IPrinterDiscoveryService _printerDiscovery;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<PrintJobProcessor> _logger;
 
     public PrintJobProcessor(
@@ -23,12 +26,16 @@ public class PrintJobProcessor : IPrintJobProcessor
         IBackendClient backendClient,
         IAppConfiguration appConfiguration,
         IAgentSessionStore sessionStore,
+        IPrinterDiscoveryService printerDiscovery,
+        IConfiguration configuration,
         ILogger<PrintJobProcessor> logger)
     {
         _printerService = printerService;
         _backendClient = backendClient;
         _appConfiguration = appConfiguration;
         _sessionStore = sessionStore;
+        _printerDiscovery = printerDiscovery;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -49,9 +56,23 @@ public class PrintJobProcessor : IPrintJobProcessor
         await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Received, cancellationToken);
         await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Printing, cancellationToken);
 
-        var printer = _appConfiguration.Printers.FirstOrDefault(p => p.Id == job.PrinterId);
+        _logger.LogInformation(
+            "Print job {JobId}: payloadType={PayloadType} requested printerId={RequestedPrinterId}.",
+            job.RedisMessageId,
+            job.Payload?.Type,
+            job.PrinterId);
+
+        var printer = _appConfiguration.Printers.FirstOrDefault(p =>
+            string.Equals(p.Id, job.PrinterId, StringComparison.OrdinalIgnoreCase));
         if (printer == null)
         {
+            var configured = _appConfiguration.Printers.Select(p => p.Id).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+            _logger.LogWarning(
+                "Print job {JobId} failed: no printer with Id matching {RequestedPrinterId}. Configured printer ids: [{Configured}]. " +
+                "Add or fix Printers[] in %ProgramData%\\URSPrinterAgent\\agent.json (Configurator) so Id matches the backend job's printerId.",
+                job.RedisMessageId,
+                job.PrinterId,
+                string.Join(", ", configured));
             AgentMetrics.PrintFailures.Add(1);
             await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Failed, cancellationToken);
             AgentMetrics.JobsProcessed.Add(1);
@@ -59,6 +80,22 @@ public class PrintJobProcessor : IPrintJobProcessor
         }
 
         var success = await _printerService.PrintAsync(printer, job, cancellationToken);
+        if (!success)
+        {
+            var recovery = await _printerDiscovery.TryRecoverAfterPrintFailureAsync(printer, cancellationToken)
+                .ConfigureAwait(false);
+            if (recovery.Recovered && recovery.Printer != null)
+            {
+                if (_configuration is IConfigurationRoot root)
+                    root.Reload();
+
+                var retryPrinter = _appConfiguration.Printers.FirstOrDefault(p =>
+                                      string.Equals(p.Id, job.PrinterId, StringComparison.OrdinalIgnoreCase))
+                                  ?? recovery.Printer;
+                success = await _printerService.PrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         var finalStatus = success ? PrintJobStatus.Success : PrintJobStatus.Failed;
 
         if (!success)

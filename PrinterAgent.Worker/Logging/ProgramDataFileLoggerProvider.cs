@@ -6,24 +6,63 @@ namespace PrinterAgent.Worker.Logging;
 
 /// <summary>
 /// Scrie loguri în <c>%ProgramData%\URSPrinterAgent\logs\worker.log</c> (util când serviciul Windows nu are consolă și Event Viewer e gol / filtrat).
+/// La peste 1 MiB, rotește: păstrează <c>worker.log</c> (activ) și arhive <c>worker.log.1</c>–<c>.4</c> (maxim 5 fișiere în total).
 /// </summary>
 public sealed class ProgramDataFileLoggerProvider : ILoggerProvider
 {
-    private readonly StreamWriter _writer;
+    private const string LogFileName = "worker.log";
+    private const long MaxLogFileBytes = 1024 * 1024;
+
+    private StreamWriter _writer;
+    private readonly string _logDir;
+    private readonly string _activeLogPath;
     private readonly object _lock = new();
 
     public ProgramDataFileLoggerProvider()
     {
         _ = AgentProgramData.Root;
-        var dir = Path.Combine(AgentProgramData.Root, "logs");
-        Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, "worker.log");
-        _writer = new StreamWriter(
-            new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read),
+        _logDir = Path.Combine(AgentProgramData.Root, "logs");
+        Directory.CreateDirectory(_logDir);
+        _activeLogPath = Path.Combine(_logDir, LogFileName);
+        _writer = OpenWriter();
+    }
+
+    private StreamWriter OpenWriter()
+    {
+        return new StreamWriter(
+            new FileStream(_activeLogPath, FileMode.Append, FileAccess.Write, FileShare.Read),
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
         {
             AutoFlush = true
         };
+    }
+
+    private void Rotate()
+    {
+        _writer.Flush();
+        _writer.Dispose();
+
+        TryDelete(ArchivedPath(4));
+        TryMove(ArchivedPath(3), ArchivedPath(4));
+        TryMove(ArchivedPath(2), ArchivedPath(3));
+        TryMove(ArchivedPath(1), ArchivedPath(2));
+        TryMove(_activeLogPath, ArchivedPath(1));
+
+        _writer = OpenWriter();
+    }
+
+    private string ArchivedPath(int part) => Path.Combine(_logDir, $"{LogFileName}.{part}");
+
+    private static void TryDelete(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
+    private static void TryMove(string source, string destination)
+    {
+        if (File.Exists(source))
+            File.Move(source, destination, overwrite: true);
     }
 
     public ILogger CreateLogger(string categoryName) => new FileLogger(categoryName, this);
@@ -35,6 +74,9 @@ public sealed class ProgramDataFileLoggerProvider : ILoggerProvider
         lock (_lock)
         {
             _writer.WriteLine(line);
+            _writer.Flush();
+            if (_writer.BaseStream is FileStream fs && fs.Length >= MaxLogFileBytes)
+                Rotate();
         }
     }
 

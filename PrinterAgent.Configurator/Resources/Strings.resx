@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="WindowTitle" xml:space="preserve">
+    <value>URS Printer Agent — Configurator</value>
+  </data>
+  <data name="LanguageLabel" xml:space="preserve">
+    <value>Language</value>
+  </data>
+
+  <data name="BackButton" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="NextButton" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="SaveButton" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="CloseButton" xml:space="preserve">
+    <value>Close</value>
+  </data>
+
+  <data name="Step1_Title" xml:space="preserve">
+    <value>Printer agent setup</value>
+  </data>
+  <data name="Step1_Description" xml:space="preserve">
+    <value>Enter the enrollment code (from the manager). This code is saved to agent.json in ProgramData.</value>
+  </data>
+  <data name="EnrollmentCode_Label" xml:space="preserve">
+    <value>Enrollment code (alphanumeric)</value>
+  </data>
+  <data name="EnrollmentCode_Hint" xml:space="preserve">
+    <value>6–32 characters: letters and digits.</value>
+  </data>
+
+  <data name="Step2_Title" xml:space="preserve">
+    <value>Local network and port 9100 scan</value>
+  </data>
+  <data name="Step2_Description" xml:space="preserve">
+    <value>The subnet is derived from the selected IPv4 network interface (same LAN segment as the printer). Scanning is explicit: confirm below, then start the scan.</value>
+  </data>
+  <data name="Nic_Label" xml:space="preserve">
+    <value>Network interface (IPv4)</value>
+  </data>
+  <data name="ScanConsent_Text" xml:space="preserve">
+    <value>I understand that short TCP attempts will be sent to each address in the subnet on port 9100 (active scan of the local network).</value>
+  </data>
+  <data name="ScanButton" xml:space="preserve">
+    <value>Scan port 9100</value>
+  </data>
+  <data name="FoundHosts_Label" xml:space="preserve">
+    <value>Hosts with port 9100 open</value>
+  </data>
+
+  <data name="Step3_Title" xml:space="preserve">
+    <value>Printer and save</value>
+  </data>
+  <data name="PrinterName_Label" xml:space="preserve">
+    <value>Display name</value>
+  </data>
+  <data name="PrinterId_Label" xml:space="preserve">
+    <value>PrinterId (stable for jobs)</value>
+  </data>
+  <data name="Port_Label" xml:space="preserve">
+    <value>TCP port</value>
+  </data>
+  <data name="TestPrintButton" xml:space="preserve">
+    <value>Test print</value>
+  </data>
+  <data name="RegenerateIdButton" xml:space="preserve">
+    <value>Regenerate ID from name</value>
+  </data>
+  <data name="SaveHintText" xml:space="preserve">
+    <value>Saving updates EnrollmentCode and adds/replaces the printer with the same PrinterId in agent.json.</value>
+  </data>
+
+  <data name="Step4_Title" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="OpenProgramDataButton" xml:space="preserve">
+    <value>Open ProgramData folder (URSPrinterAgent)</value>
+  </data>
+  <data name="AddAnotherPrinterButton" xml:space="preserve">
+    <value>Add another printer (same subnet)</value>
+  </data>
+  <data name="DoneHintText" xml:space="preserve">
+    <value>For two printers on the same LAN: save the first, then “Add another printer”, scan again, choose the other IP address and a different PrinterId (e.g., kitchen-1, bar-1).</value>
+  </data>
+
+  <data name="Footer_Step1" xml:space="preserve">
+    <value>Step 1/4 — enrollment code</value>
+  </data>
+  <data name="Footer_Step2" xml:space="preserve">
+    <value>Step 2/4 — local network scan</value>
+  </data>
+  <data name="Footer_Step3" xml:space="preserve">
+    <value>Step 3/4 — printer</value>
+  </data>
+  <data name="Footer_Step4" xml:space="preserve">
+    <value>Step 4/4 — finish</value>
+  </data>
+
+  <data name="Validation_Title" xml:space="preserve">
+    <value>Validation</value>
+  </data>
+  <data name="Validation_EnrollmentCode" xml:space="preserve">
+    <value>The enrollment code must be 6–32 alphanumeric characters (no spaces).</value>
+  </data>
+  <data name="ReadAgentJsonFailed" xml:space="preserve">
+    <value>Could not read agent.json: {0}</value>
+  </data>
+
+  <data name="AgentJsonPath_Label" xml:space="preserve">
+    <value>Configuration file (edit IP/MAC here; the manager shows the last heartbeat from this file):</value>
+  </data>
+  <data name="RefreshIp_Button" xml:space="preserve">
+    <value>Refresh printer IPs (ARP / scan)</value>
+  </data>
+  <data name="RefreshIp_Title" xml:space="preserve">
+    <value>Refresh printer IPs</value>
+  </data>
+  <data name="RefreshIp_Running" xml:space="preserve">
+    <value>Resolving printer addresses…</value>
+  </data>
+</root>
+

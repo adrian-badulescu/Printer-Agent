@@ -12,6 +12,10 @@ public sealed class AgentSessionStore : IAgentSessionStore
     private const string SessionFileName = "agent.session.json";
     private const string InstanceFileName = "client.instance";
 
+    private static readonly SemaphoreSlim SessionSaveLock = new(1, 1);
+    private const int SessionSaveMaxAttempts = 6;
+    private static readonly TimeSpan SessionSaveRetryDelay = TimeSpan.FromMilliseconds(60);
+
     private readonly ILogger<AgentSessionStore> _logger;
     private readonly string _baseDir;
     private AgentSessionDto? _session;
@@ -185,8 +189,60 @@ public sealed class AgentSessionStore : IAgentSessionStore
         }
 
         var path = Path.Combine(_baseDir, SessionFileName);
-        await using var fs = File.Create(path);
-        await JsonSerializer.SerializeAsync(fs, fileDto, SerializerOptions, cancellationToken).ConfigureAwait(false);
+        Directory.CreateDirectory(_baseDir);
+
+        for (var attempt = 1; attempt <= SessionSaveMaxAttempts; attempt++)
+        {
+            var tempPath = Path.Combine(_baseDir, SessionFileName + ".tmp." + Guid.NewGuid().ToString("N"));
+            await SessionSaveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await using (var fs = new FileStream(
+                                   tempPath,
+                                   FileMode.Create,
+                                   FileAccess.Write,
+                                   FileShare.Read,
+                                   bufferSize: 4096,
+                                   options: FileOptions.Asynchronous | FileOptions.SequentialScan))
+                {
+                    await JsonSerializer.SerializeAsync(fs, fileDto, SerializerOptions, cancellationToken).ConfigureAwait(false);
+                }
+
+                // File.Replace often throws "Unable to remove the file to be replaced" when AV/indexers lock the destination.
+                // Move(..., overwrite: true) uses ReplaceFile less aggressively on typical installs.
+                File.Move(tempPath, path, overwrite: true);
+
+                TryDeleteQuiet(tempPath);
+                break;
+            }
+            catch (IOException ex)
+            {
+                TryDeleteQuiet(tempPath);
+                if (attempt >= SessionSaveMaxAttempts)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Session save failed after {Max} attempts (agentId={AgentId}).",
+                        SessionSaveMaxAttempts,
+                        agentId);
+                    throw;
+                }
+
+                _logger.LogWarning(
+                    ex,
+                    "Session save IO error (attempt {Attempt}/{Max}); retrying.",
+                    attempt,
+                    SessionSaveMaxAttempts);
+            }
+            finally
+            {
+                SessionSaveLock.Release();
+            }
+
+            if (attempt < SessionSaveMaxAttempts)
+                await Task.Delay(SessionSaveRetryDelay, cancellationToken).ConfigureAwait(false);
+        }
+
         _logger.LogInformation("Session saved to {File} (agentId={AgentId}).", SessionFileName, agentId);
 
         AgentProgramDataAgentJsonSync.TryWriteRestaurantId(restaurantId, _logger);
@@ -219,6 +275,19 @@ public sealed class AgentSessionStore : IAgentSessionStore
         public string RefreshToken { get; set; } = string.Empty;
         public string RestaurantId { get; set; } = string.Empty;
         public DateTime ExpiresAtUtc { get; set; }
+    }
+
+    private static void TryDeleteQuiet(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+            // ignore
+        }
     }
 
     private sealed class AgentSessionFileDto
