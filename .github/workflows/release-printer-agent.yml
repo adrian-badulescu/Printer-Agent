@@ -1,0 +1,49 @@
+# Builds PrinterAgent.Worker (win-x64 self-contained) and uploads URS-PrinterAgent-win-x64.zip
+# to the GitHub Release for the pushed tag.
+#
+# Trigger: git tag v1.2.3 && git push origin v1.2.3
+# Stable URL: https://github.com/<OWNER>/<REPO>/releases/latest/download/URS-PrinterAgent-win-x64.zip
+
+name: Release Printer Agent (Windows x64)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Worker
+        shell: pwsh
+        run: |
+          dotnet publish PrinterAgent.Worker/PrinterAgent.Worker.csproj `
+            -c Release `
+            -o ./artifacts/publish
+
+      - name: Zip publish output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ./artifacts/publish)) { throw "Publish output missing" }
+          Get-ChildItem ./artifacts/publish -Filter *.pdb -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
+          if (Test-Path ./URS-PrinterAgent-win-x64.zip) { Remove-Item ./URS-PrinterAgent-win-x64.zip -Force }
+          Compress-Archive -Path ./artifacts/publish/* -DestinationPath ./URS-PrinterAgent-win-x64.zip -Force
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: URS-PrinterAgent-win-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
