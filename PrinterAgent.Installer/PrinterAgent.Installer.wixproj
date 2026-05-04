@@ -13,6 +13,8 @@
     <!-- SelfSignedMsiSigning=true: SignMsi.ps1 creates/reuses CN=URS Printer Agent Self-Signed (CurrentUser\My). -->
     <MsiSigningMode Condition="'$(SelfSignedMsiSigning)' == 'true'">SelfSigned</MsiSigningMode>
     <MsiSigningMode Condition="'$(MsiSigningMode)' == ''">Enterprise</MsiSigningMode>
+    <!-- WiX CoreCompile runs inside CoreBuild's dependency graph. BeforeTargets=Build/CoreBuild still runs after CoreCompile, so publish\ was missing on clean CI (WIX0103). -->
+    <CoreCompileDependsOn>PublishAgentProjects;$(CoreCompileDependsOn)</CoreCompileDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,10 +32,10 @@
     <WixLocalization Include="Package.it-IT.wxl" />
   </ItemGroup>
 
-  <!-- Publish worker + configurator before building the MSI (Configurator must not block MSI; runs as separate EXE after install). -->
-  <Target Name="PublishAgentProjects" BeforeTargets="Build">
-    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\PrinterAgent.Worker.csproj&quot; -c $(Configuration)" />
-    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\PrinterAgent.Configurator.csproj&quot; -c $(Configuration)" />
+  <!-- Publish worker + configurator before WiX CoreCompile (see CoreCompileDependsOn above). -->
+  <Target Name="PublishAgentProjects">
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Worker\PrinterAgent.Worker.csproj&quot; -c $(Configuration) -r win-x64" />
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Configurator\PrinterAgent.Configurator.csproj&quot; -c $(Configuration) -r win-x64" />
   </Target>
 
   <!-- SkipMsiSigning=true skips signing. Otherwise SignMsi.ps1 runs once per MSI (TargetPath splits on ';'). -->
