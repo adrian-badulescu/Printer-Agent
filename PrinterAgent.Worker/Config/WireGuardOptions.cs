@@ -16,6 +16,18 @@ public class WireGuardOptions
     public string ConfigFilePath { get; set; } = string.Empty;
 
     /// <summary>
+    /// Dacă e true, agentul încearcă să instaleze automat tunnel-ul ca serviciu Windows din fișierul .conf
+    /// folosind <c>wireguard.exe /installtunnelservice</c>.
+    /// </summary>
+    public bool InstallTunnelServiceIfMissing { get; set; } = true;
+
+    /// <summary>
+    /// Numele tunnel-ului (fără prefixul <c>WireGuardTunnel$</c>), ex. pentru <c>restaurant.conf</c> => <c>restaurant</c>.
+    /// Dacă e gol, se derivă din numele fișierului <see cref="ConfigFilePath"/>.
+    /// </summary>
+    public string TunnelName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Numele serviciului Windows creat de WireGuard, ex. <c>WireGuardTunnel$restaurant</c>
     /// pentru fișierul restaurant.conf importat în UI.
     /// </summary>

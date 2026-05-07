@@ -79,6 +79,9 @@ try
             services.AddTransient<IUpdateService, UpdateService>();
             services.AddHttpClient<IBackendClient, BackendClient>().AddHttpMessageHandler<PrinterAgentAuthHandler>();
 
+            // WireGuard for Windows automation (install tunnel service from .conf).
+            services.AddSingleton<IWireGuardTunnelManager, WireGuardWindowsTunnelManager>();
+
             // Redis: conectare la prima folosire (după enroll), nu la rezolvarea IHostedService.
             services.AddSingleton(sp =>
             {

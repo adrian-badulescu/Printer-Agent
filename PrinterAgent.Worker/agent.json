@@ -13,21 +13,22 @@
     "BackendHealthPath": "api/ping-lite",
     "BackendHealthTimeoutSeconds": 10
   },
-  "WireGuard": {
-    "Enabled": false,
-    "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\restaurant-tunnel.conf",
-    "WindowsTunnelServiceName": "WireGuardTunnel$restaurant-tunnel",
-    "WaitForTunnelServiceSeconds": 120,
-    "StartServiceIfStopped": false
-  },
-  "Redis": {
-    "Host": "127.0.0.1",
-    "Port": "6379",
-    "Ssl": false,
-    "AbortConnect": false,
-    "ClientName": "URSPrinterAgent",
-    "StreamKeyPrefix": "print.jobs",
-    "ConsumerGroup": "printer-agents"
-  },
+    "WireGuard": {
+        "Enabled": true,
+        "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
+        "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
+        "WaitForTunnelServiceSeconds": 15,
+        "StartServiceIfStopped": true
+    },
+    "Redis": {
+        "Host": "10.8.0.1",
+        "Port": "6379",
+        "Password": "Santiagodechile2025##",
+        "Ssl": false,
+        "AbortConnect": false,
+        "ClientName": "URSPrinterAgent",
+        "StreamKeyPrefix": "print.jobs",
+        "ConsumerGroup": "printer-agents"
+    },
   "Printers": []
 }

@@ -24,6 +24,19 @@
     </BootstrapperApplication>
 
     <Chain>
+      <!-- WireGuard for Windows (x64) prerequisite.
+           Burn will detect installed state via MSI product code and skip if already present. -->
+      <MsiPackage Id="WireGuardMsi"
+                  DisplayName="WireGuard"
+                  DownloadUrl="https://download.wireguard.com/windows-client/wireguard-amd64-0.5.3.msi"
+                  Compressed="no"
+                  Cache="yes"
+                  Vital="yes"
+                  InstallCondition="VersionNT64">
+        <!-- Prevent launching the UI after install -->
+        <MsiProperty Name="DO_NOT_LAUNCH" Value="1" />
+      </MsiPackage>
+
       <MsiPackage Id="UrsPrinterAgentMsi"
                   SourceFile="$(var.PrinterAgent.Installer.TargetPath)"
                   Compressed="yes"

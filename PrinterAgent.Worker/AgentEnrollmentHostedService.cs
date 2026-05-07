@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
+using PrinterAgent.Infrastructure.Networking;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -22,6 +23,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
     private readonly IAppConfiguration _appConfiguration;
     private readonly IBackendClient _backendClient;
     private readonly IOptions<WireGuardOptions> _wireGuardOptions;
+    private readonly IWireGuardTunnelManager _wireGuardTunnelManager;
     private readonly ILogger<AgentEnrollmentHostedService> _logger;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -33,6 +35,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         IAppConfiguration appConfiguration,
         IBackendClient backendClient,
         IOptions<WireGuardOptions> wireGuardOptions,
+        IWireGuardTunnelManager wireGuardTunnelManager,
         ILogger<AgentEnrollmentHostedService> logger)
     {
         _httpClientFactory = httpClientFactory;
@@ -41,6 +44,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         _appConfiguration = appConfiguration;
         _backendClient = backendClient;
         _wireGuardOptions = wireGuardOptions;
+        _wireGuardTunnelManager = wireGuardTunnelManager;
         _logger = logger;
     }
 
@@ -87,7 +91,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
+                {
                     return;
+                }
 
                 var code = _appConfiguration.EnrollmentCode;
                 if (string.IsNullOrWhiteSpace(code))
@@ -261,13 +267,50 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 return;
 
             await File.WriteAllTextAsync(path, conf, cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation(
-                "WireGuard provisioning: wrote config to {Path}. Import it once in the WireGuard app to create/start the tunnel service.",
-                path);
+
+            _logger.LogInformation("WireGuard provisioning: wrote config to {Path}.", path);
+
+            if (opt.InstallTunnelServiceIfMissing)
+            {
+                // Installing the tunnel service requires admin. The agent runs as a Windows service (LocalSystem),
+                // so this should work as long as WireGuard for Windows is installed.
+                await TryInstallTunnelServiceAsync(opt, path, cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "WireGuard provisioning: failed to download/write .conf; continuing without blocking enrollment.");
+        }
+    }
+
+    private async Task TryInstallTunnelServiceAsync(WireGuardOptions opt, string confPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tunnelName = opt.TunnelName?.Trim();
+            if (string.IsNullOrWhiteSpace(tunnelName))
+                tunnelName = Path.GetFileNameWithoutExtension(confPath);
+
+            var serviceName = string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName)
+                ? $"WireGuardTunnel${tunnelName}"
+                : opt.WindowsTunnelServiceName.Trim();
+
+            if (_wireGuardTunnelManager.ServiceExists(serviceName))
+            {
+                _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
+                return;
+            }
+
+            _logger.LogInformation(
+                "WireGuard provisioning: installing tunnel service {Service} from {Path}.",
+                serviceName,
+                confPath);
+
+            await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WireGuard provisioning: failed to install tunnel service from {Path}.", confPath);
         }
     }
 

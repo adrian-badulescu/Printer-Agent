@@ -3,6 +3,7 @@ using System.ServiceProcess;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PrinterAgent.Infrastructure.Networking;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -14,13 +15,16 @@ namespace PrinterAgent.Worker;
 public sealed class WireGuardTunnelHostedService : IHostedService
 {
     private readonly IOptions<WireGuardOptions> _options;
+    private readonly IWireGuardTunnelManager _tunnelManager;
     private readonly ILogger<WireGuardTunnelHostedService> _logger;
 
     public WireGuardTunnelHostedService(
         IOptions<WireGuardOptions> options,
+        IWireGuardTunnelManager tunnelManager,
         ILogger<WireGuardTunnelHostedService> logger)
     {
         _options = options;
+        _tunnelManager = tunnelManager;
         _logger = logger;
     }
 
@@ -33,23 +37,24 @@ public sealed class WireGuardTunnelHostedService : IHostedService
         if (!string.IsNullOrWhiteSpace(opt.ConfigFilePath))
         {
             _logger.LogInformation(
-                "WireGuard: config file path (admin: import in WireGuard app): {Path}",
+                "WireGuard: config file path: {Path}",
                 opt.ConfigFilePath);
         }
 
-        if (string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName))
+        var serviceName = ResolveWindowsTunnelServiceName(opt);
+        if (string.IsNullOrWhiteSpace(serviceName))
         {
             _logger.LogWarning(
-                "WireGuard.Enabled=true but WindowsTunnelServiceName is missing; tunnel will not be checked or started.");
+                "WireGuard.Enabled=true but WindowsTunnelServiceName/TunnelName/ConfigFilePath are missing; tunnel will not be checked or started.");
             return Task.CompletedTask;
         }
 
         try
         {
-            using var sc = new ServiceController(opt.WindowsTunnelServiceName);
+            using var sc = new ServiceController(serviceName);
             _logger.LogInformation(
                 "WireGuard: service {Service} status is {Status}.",
-                opt.WindowsTunnelServiceName,
+                serviceName,
                 sc.Status);
 
             if (sc.Status == ServiceControllerStatus.Running)
@@ -59,13 +64,13 @@ public sealed class WireGuardTunnelHostedService : IHostedService
             {
                 _logger.LogError(
                     "WireGuard: service {Service} is stopped. Enable StartServiceIfStopped or start the tunnel from the WireGuard app.",
-                    opt.WindowsTunnelServiceName);
+                    serviceName);
                 return Task.CompletedTask;
             }
 
             if (opt.StartServiceIfStopped && sc.Status == ServiceControllerStatus.Stopped)
             {
-                _logger.LogInformation("WireGuard: starting service {Service}...", opt.WindowsTunnelServiceName);
+                _logger.LogInformation("WireGuard: starting service {Service}...", serviceName);
                 sc.Start();
             }
 
@@ -75,7 +80,7 @@ public sealed class WireGuardTunnelHostedService : IHostedService
             {
                 _logger.LogError(
                     "WireGuard: service {Service} is not Running after {Timeout}. Current status: {Status}.",
-                    opt.WindowsTunnelServiceName,
+                    serviceName,
                     timeout,
                     sc.Status);
             }
@@ -86,10 +91,20 @@ public sealed class WireGuardTunnelHostedService : IHostedService
         }
         catch (InvalidOperationException ex)
         {
+            if (opt.InstallTunnelServiceIfMissing && !string.IsNullOrWhiteSpace(opt.ConfigFilePath) && File.Exists(opt.ConfigFilePath))
+            {
+                _logger.LogWarning(
+                    "WireGuard: service {Service} not found; attempting to install tunnel service from {ConfPath}.",
+                    serviceName,
+                    opt.ConfigFilePath);
+
+                return InstallThenStartAsync(serviceName, opt.ConfigFilePath, cancellationToken);
+            }
+
             _logger.LogError(
                 ex,
                 "WireGuard: service {Service} not found or could not be started (admin rights / wrong name?).",
-                opt.WindowsTunnelServiceName);
+                serviceName);
         }
         catch (Exception ex)
         {
@@ -100,4 +115,40 @@ public sealed class WireGuardTunnelHostedService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task InstallThenStartAsync(string serviceName, string confPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _tunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+
+            using var sc = new ServiceController(serviceName);
+            _logger.LogInformation("WireGuard: after install, service {Service} status is {Status}.", serviceName, sc.Status);
+            if (sc.Status != ServiceControllerStatus.Running && _options.Value.StartServiceIfStopped)
+            {
+                sc.Start();
+                var timeout = TimeSpan.FromSeconds(Math.Clamp(_options.Value.WaitForTunnelServiceSeconds, 5, 600));
+                sc.WaitForStatus(ServiceControllerStatus.Running, timeout);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "WireGuard: failed to install/start tunnel service from {ConfPath}.", confPath);
+        }
+    }
+
+    private static string ResolveWindowsTunnelServiceName(WireGuardOptions opt)
+    {
+        if (!string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName))
+            return opt.WindowsTunnelServiceName.Trim();
+
+        var tunnelName = opt.TunnelName?.Trim();
+        if (string.IsNullOrWhiteSpace(tunnelName) && !string.IsNullOrWhiteSpace(opt.ConfigFilePath))
+        {
+            try { tunnelName = Path.GetFileNameWithoutExtension(opt.ConfigFilePath); }
+            catch { tunnelName = null; }
+        }
+
+        return string.IsNullOrWhiteSpace(tunnelName) ? string.Empty : $"WireGuardTunnel${tunnelName}";
+    }
 }
