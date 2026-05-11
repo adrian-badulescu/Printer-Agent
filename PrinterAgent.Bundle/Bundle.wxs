@@ -1,5 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <Bundle Name="URS Printer Agent"
           Manufacturer="U.R.S."
@@ -11,6 +12,8 @@
           Theme="hyperlinkLicense"
           ThemeFile="Resources\thm.xml"
           SuppressOptionsUI="yes"
+          LaunchTarget="[ProgramFiles64Folder]URSPrinterAgent\PrinterAgent.Configurator.exe"
+          LaunchWorkingFolder="[ProgramFiles64Folder]URSPrinterAgent"
           LicenseUrl="" />
 
       <!-- ThemeFile auto-adds thm.xml; we only add per-language localizations. -->
@@ -23,24 +26,40 @@
       <Payload Name="1048\thm.wxl" SourceFile="Resources\1048\thm.wxl" Compressed="yes" />
     </BootstrapperApplication>
 
+    <!-- Detect presence of WireGuard by checking for wireguard.exe in the default install location. -->
+    <util:FileSearch Id="WireGuardExeExistsSearch"
+                     Variable="WireGuardExeExists"
+                     Path="[ProgramFiles64Folder]WireGuard\wireguard.exe"
+                     Result="exists" />
+
     <Chain>
       <!-- WireGuard for Windows (x64) prerequisite.
-           Burn will detect installed state via MSI product code and skip if already present. -->
-      <MsiPackage Id="WireGuardMsi"
+           Payload is embedded from redist\wireguard-installer.exe (downloaded at bundle build time).
+           Runtime-only DownloadUrl without Hash/Size is unreliable in WiX Burn v4; embedding avoids silent skip. -->
+      <ExePackage Id="WireGuardInstallerExe"
                   DisplayName="WireGuard"
-                  DownloadUrl="https://download.wireguard.com/windows-client/wireguard-amd64-0.5.3.msi"
-                  Compressed="no"
-                  Cache="yes"
+                  InstallArguments="/noprompt"
+                  DetectCondition="WireGuardExeExists"
+                  Cache="keep"
                   Vital="yes"
+                  Permanent="yes"
                   InstallCondition="VersionNT64">
-        <!-- Prevent launching the UI after install -->
-        <MsiProperty Name="DO_NOT_LAUNCH" Value="1" />
-      </MsiPackage>
+        <ExePackagePayload Name="wireguard-installer.exe"
+                           SourceFile="redist\wireguard-installer.exe" />
+      </ExePackage>
 
-      <MsiPackage Id="UrsPrinterAgentMsi"
-                  SourceFile="$(var.PrinterAgent.Installer.TargetPath)"
+      <!-- Printer Agent MSI: WiX builds per-culture output under bin\<cfg>\<culture>\PrinterAgent.msi. -->
+      <MsiPackage Id="UrsPrinterAgentMsi_it"
+                  SourceFile="$(var.PrinterAgent.Installer.TargetDir)it-IT\PrinterAgent.msi"
                   Compressed="yes"
-                  Vital="yes" />
+                  Vital="yes"
+                  InstallCondition="WixBundleCulture = &quot;it-IT&quot;" />
+
+      <MsiPackage Id="UrsPrinterAgentMsi_en"
+                  SourceFile="$(var.PrinterAgent.Installer.TargetDir)en-US\PrinterAgent.msi"
+                  Compressed="yes"
+                  Vital="yes"
+                  InstallCondition="WixBundleCulture &lt;&gt; &quot;it-IT&quot;" />
     </Chain>
   </Bundle>
 </Wix>

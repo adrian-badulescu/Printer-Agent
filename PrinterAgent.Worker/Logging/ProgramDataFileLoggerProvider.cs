@@ -29,12 +29,31 @@ public sealed class ProgramDataFileLoggerProvider : ILoggerProvider
 
     private StreamWriter OpenWriter()
     {
-        return new StreamWriter(
-            new FileStream(_activeLogPath, FileMode.Append, FileAccess.Write, FileShare.Read),
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+        // FileShare.Read blocks a second writer (e.g. service + manual exe): both need append access.
+        // ReadWrite allows multiple appenders; lines may interleave but startup must not fail.
+        const int maxAttempts = 8;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            AutoFlush = true
-        };
+            try
+            {
+                return new StreamWriter(
+                    new FileStream(
+                        _activeLogPath,
+                        FileMode.Append,
+                        FileAccess.Write,
+                        FileShare.ReadWrite),
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+                {
+                    AutoFlush = true
+                };
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(50 * attempt);
+            }
+        }
+
+        throw new IOException($"Could not open log file after {maxAttempts} attempts: {_activeLogPath}");
     }
 
     private void Rotate()

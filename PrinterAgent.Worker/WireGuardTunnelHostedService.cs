@@ -86,7 +86,7 @@ public sealed class WireGuardTunnelHostedService : IHostedService
             }
             else
             {
-                _logger.LogInformation("WireGuard: service {Service} is Running.", opt.WindowsTunnelServiceName);
+                _logger.LogInformation("WireGuard: service {Service} is Running.", serviceName);
             }
         }
         catch (InvalidOperationException ex)
@@ -124,11 +124,37 @@ public sealed class WireGuardTunnelHostedService : IHostedService
 
             using var sc = new ServiceController(serviceName);
             _logger.LogInformation("WireGuard: after install, service {Service} status is {Status}.", serviceName, sc.Status);
-            if (sc.Status != ServiceControllerStatus.Running && _options.Value.StartServiceIfStopped)
+
+            var opt = _options.Value;
+            // installtunnelservice often leaves the service StartPending or Running; only start when fully Stopped.
+            if (sc.Status == ServiceControllerStatus.Stopped && opt.StartServiceIfStopped)
             {
+                _logger.LogInformation("WireGuard: starting service {Service}...", serviceName);
                 sc.Start();
-                var timeout = TimeSpan.FromSeconds(Math.Clamp(_options.Value.WaitForTunnelServiceSeconds, 5, 600));
+            }
+            else if (sc.Status == ServiceControllerStatus.Stopped && !opt.StartServiceIfStopped)
+            {
+                _logger.LogWarning(
+                    "WireGuard: service {Service} is stopped after install; enable StartServiceIfStopped to start it automatically.",
+                    serviceName);
+                return;
+            }
+
+            var timeout = TimeSpan.FromSeconds(Math.Clamp(opt.WaitForTunnelServiceSeconds, 5, 600));
+            if (sc.Status != ServiceControllerStatus.Running)
                 sc.WaitForStatus(ServiceControllerStatus.Running, timeout);
+
+            if (sc.Status != ServiceControllerStatus.Running)
+            {
+                _logger.LogError(
+                    "WireGuard: service {Service} is not Running after {Timeout}. Current status: {Status}.",
+                    serviceName,
+                    timeout,
+                    sc.Status);
+            }
+            else
+            {
+                _logger.LogInformation("WireGuard: service {Service} is Running.", serviceName);
             }
         }
         catch (Exception ex)

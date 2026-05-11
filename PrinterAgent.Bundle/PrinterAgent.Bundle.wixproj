@@ -7,7 +7,21 @@
     <!-- Do not treat our runtime thm.wxl payloads as compile-time localization inputs. -->
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <DefineConstants>$(DefineConstants)</DefineConstants>
+    <WireGuardInstallerUrl>https://download.wireguard.com/windows-client/wireguard-installer.exe</WireGuardInstallerUrl>
+    <WireGuardRedistExe>$(MSBuildThisFileDirectory)redist\wireguard-installer.exe</WireGuardRedistExe>
   </PropertyGroup>
+
+  <!-- Embed WireGuard fetcher in the bundle EXE. WiX Burn remote DownloadUrl without Hash/Size often does not run at install time. -->
+  <Target Name="EnsureWireGuardRedist" BeforeTargets="BeforeBuild">
+    <MakeDir Directories="$(MSBuildThisFileDirectory)redist" />
+    <Exec Condition="!Exists('$(WireGuardRedistExe)')"
+          IgnoreExitCode="false"
+          ConsoleToMsBuild="true"
+          WorkingDirectory="$(MSBuildThisFileDirectory)"
+          Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;$ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '$(WireGuardInstallerUrl)' -OutFile '$(WireGuardRedistExe)' -UseBasicParsing&quot;" />
+    <Error Condition="!Exists('$(WireGuardRedistExe)')"
+           Text="Missing $(WireGuardRedistExe). Build once with network access, or download wireguard-installer.exe manually into PrinterAgent.Bundle\redist\" />
+  </Target>
 
   <ItemGroup>
     <!-- Ensure MSI gets built before bundle. -->

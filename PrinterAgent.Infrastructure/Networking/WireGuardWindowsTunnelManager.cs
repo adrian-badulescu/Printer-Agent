@@ -68,24 +68,35 @@ public sealed class WireGuardWindowsTunnelManager : IWireGuardTunnelManager
         // Typical install location for WireGuard for Windows.
         var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var w6432 = Environment.GetEnvironmentVariable("ProgramW6432");
 
         var candidates = new[]
         {
+            string.IsNullOrEmpty(w6432) ? null : Path.Combine(w6432, "WireGuard", "wireguard.exe"),
             Path.Combine(pf, "WireGuard", "wireguard.exe"),
             Path.Combine(pf86, "WireGuard", "wireguard.exe"),
-            "wireguard.exe" // fallback to PATH
         };
 
+        var checkedPaths = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var c in candidates)
         {
-            if (string.Equals(c, "wireguard.exe", StringComparison.OrdinalIgnoreCase))
-                return c;
+            if (string.IsNullOrEmpty(c) || !seen.Add(c))
+                continue;
+            checkedPaths.Add(c);
+        }
+
+        foreach (var c in checkedPaths)
+        {
             if (File.Exists(c))
                 return c;
         }
 
-        // Let ProcessStart fail with a clear error rather than guessing other paths.
-        return "wireguard.exe";
+        throw new InvalidOperationException(
+            "WireGuard for Windows is not installed (wireguard.exe not found). " +
+            "The PrinterAgent.msi installer alone does NOT install WireGuard — run URSPrinterAgentSetup.exe (bundle) instead, or install WireGuard manually from https://www.wireguard.com/install/. " +
+            "Then restart the URSPrinterAgent Windows service. " +
+            "Checked: " + string.Join("; ", checkedPaths));
     }
 
     private static async Task RunAsync(string fileName, string arguments, CancellationToken cancellationToken)

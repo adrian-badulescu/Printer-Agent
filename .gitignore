@@ -481,3 +481,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Fetched at bundle build (see PrinterAgent.Bundle.wixproj EnsureWireGuardRedist)
+PrinterAgent.Bundle/redist/wireguard-installer.exe
