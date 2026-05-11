@@ -5,17 +5,22 @@
 #
 # Triggers:
 #   - push to main/master: uploads a workflow artifact (ZIP). Artifacts expire per repo settings (default ~90 days).
-#   - push tag v* (e.g. v1.0.13): same + attaches URSPrinterAgent-Windows.zip to that GitHub Release (stable URL:
-#       https://github.com/OWNER/REPO/releases/download/TAG/URSPrinterAgent-Windows.zip
+#   - push tag v* (e.g. v1.0.13): same + attaches to that GitHub Release:
+#       URSPrinterAgentSetup.exe (bundle) and URSPrinterAgent-Windows.zip (MSI+CAB), e.g.
+#       https://github.com/OWNER/REPO/releases/download/TAG/URSPrinterAgentSetup.exe
 #     or use a fixed asset name on "latest" release if you manage releases manually).
 #   - workflow_dispatch: manual run from Actions tab.
 #
 # Requirements on the runner: Git, .NET 10 SDK, Windows PowerShell. WiX comes via NuGet (WixToolset.Sdk) on dotnet build.
 # The runner account must be allowed to create certs in Cert:\CurrentUser\My (normal logged-in user is fine).
 #
-# MSIs are signed with a self-signed code-signing cert (CN=URS Printer Agent Self-Signed) created in CurrentUser\My
-# on first build (-p:SelfSignedMsiSigning=true). For a public-trusted cert, build with -p:SelfSignedMsiSigning=false
-# and install your CN=U.R.S. cert, or use -p:SkipMsiSigning=true to skip signing entirely.
+# MSIs + URSPrinterAgentSetup.exe are signed with a self-signed code-signing cert (CN=URS Printer Agent Self-Signed)
+# created in CurrentUser\My on first build (-p:SelfSignedMsiSigning=true). For a public-trusted cert, build with
+# -p:SelfSignedMsiSigning=false and install your CN=U.R.S. cert, or use -p:SkipMsiSigning=true to skip signing entirely.
+#
+# Release assets on tag v*:
+#   - URSPrinterAgentSetup.exe — installer complet (WireGuard + MSI); recomandat utilizatorilor finali.
+#   - URSPrinterAgent-Windows.zip — MSI + CAB (opțional, ex. SCCM / admin care preferă MSI fără bundle).
 
 name: Printer Agent build (self-hosted)
 
@@ -45,8 +50,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build WiX installer
-        run: dotnet build PrinterAgent.Installer/PrinterAgent.Installer.wixproj -c Release -p:SelfSignedMsiSigning=true
+      - name: Build bundle (MSI + URSPrinterAgentSetup.exe, signed)
+        run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
 
       - name: Zip MSI and CAB files
         shell: powershell
@@ -72,16 +77,27 @@ jobs:
           Compress-Archive -Path ($files | ForEach-Object { $_.FullName }) -DestinationPath $zip -Force
           Get-Item -LiteralPath $zip | Format-List FullName, Length
 
+      - name: Verify bundle output
+        shell: powershell
+        run: |
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Bundle\bin\Release\URSPrinterAgentSetup.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Bundle EXE missing: $exe" }
+          Get-Item -LiteralPath $exe | Format-List FullName, Length
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: URSPrinterAgent-Windows
-          path: URSPrinterAgent-Windows.zip
+          path: |
+            URSPrinterAgent-Windows.zip
+            PrinterAgent.Bundle/bin/Release/URSPrinterAgentSetup.exe
 
-      - name: Upload release asset (tag v* only)
+      - name: Upload release assets (tag v* only)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: URSPrinterAgent-Windows.zip
+          files: |
+            URSPrinterAgent-Windows.zip
+            PrinterAgent.Bundle/bin/Release/URSPrinterAgentSetup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
