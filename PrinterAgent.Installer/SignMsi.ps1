@@ -1,4 +1,4 @@
-# Signs one MSI. Delegates to SignAuthenticode.ps1 (same cert / modes as bundle EXE).
+# Signs one MSI. Delegates to SignAuthenticode.ps1 (same cert / modes as CI uses for MSIs).
 
 param(
     [Parameter(Mandatory = $true)]

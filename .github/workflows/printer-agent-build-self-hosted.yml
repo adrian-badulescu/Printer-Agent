@@ -14,9 +14,10 @@
 # Requirements on the runner: Git, .NET 10 SDK, Windows PowerShell. WiX comes via NuGet (WixToolset.Sdk) on dotnet build.
 # The runner account must be allowed to create certs in Cert:\CurrentUser\My (normal logged-in user is fine).
 #
-# MSIs + URSPrinterAgentSetup.exe are signed with a self-signed code-signing cert (CN=URS Printer Agent Self-Signed)
-# created in CurrentUser\My on first build (-p:SelfSignedMsiSigning=true). For a public-trusted cert, build with
-# -p:SelfSignedMsiSigning=false and install your CN=U.R.S. cert, or use -p:SkipMsiSigning=true to skip signing entirely.
+# MSIs are signed with a self-signed code-signing cert (CN=URS Printer Agent Self-Signed) created in CurrentUser\My
+# on first build (-p:SelfSignedMsiSigning=true). The bundle EXE is NOT stamped here: plain post-link Authenticode
+# breaks Burn's attached container (install prompts / cache failures). Use WiX signing flow (detach engine, reattach,
+# sign bundle) per https://wixtoolset.org/docs/tools/signing/ when you need a signed bootstrapper.
 #
 # Release assets on tag v*:
 #   - URSPrinterAgentSetup.exe — installer complet (WireGuard + MSI); recomandat utilizatorilor finali.
@@ -50,7 +51,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build bundle (MSI + URSPrinterAgentSetup.exe, signed)
+      - name: Build bundle (signed MSI + unsigned Burn EXE)
         run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
 
       - name: Zip MSI and CAB files

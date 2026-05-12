@@ -35,12 +35,8 @@
 
   <!-- Theme localization is resolved at runtime from payloads (1033\thm.wxl etc.). -->
 
-  <!-- Same cert/modes as MSI: -p:SelfSignedMsiSigning=true or -p:SkipMsiSigning=true to skip. -->
-  <Target Name="SignBundleExe" AfterTargets="Build" Condition="'$(SkipMsiSigning)' != 'true'">
-    <PropertyGroup>
-      <_BundleSignMode Condition="'$(SelfSignedMsiSigning)' == 'true'">SelfSigned</_BundleSignMode>
-      <_BundleSignMode Condition="'$(_BundleSignMode)' == ''">Enterprise</_BundleSignMode>
-    </PropertyGroup>
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\PrinterAgent.Installer\SignAuthenticode.ps1&quot; -Path &quot;$(TargetPath)&quot; -Mode $(_BundleSignMode)" />
-  </Target>
+  <!-- Do NOT sign $(TargetPath) here with a plain Authenticode stamp. WiX Burn embeds a manifest + attached
+       container whose verification breaks if the EXE is re-signed incorrectly; users then see BA cache resolve
+       failures / "browse for file" (Burn log: OnCacheAcquireResolving 0x800704c7, Failed to acquire WixAttachedContainer).
+       Proper flow: https://wixtoolset.org/docs/tools/signing/ (wix burn detach → sign engine → wix burn reattach → sign bundle). -->
 </Project>

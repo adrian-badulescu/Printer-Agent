@@ -45,17 +45,22 @@
                   Permanent="yes"
                   InstallCondition="VersionNT64">
         <ExePackagePayload Name="wireguard-installer.exe"
-                           SourceFile="redist\wireguard-installer.exe" />
+                           SourceFile="redist\wireguard-installer.exe"
+                           Compressed="yes" />
       </ExePackage>
 
       <!-- Printer Agent MSI: WiX builds per-culture output under bin\<cfg>\<culture>\PrinterAgent.msi. -->
+      <!-- Unique Name paths avoid duplicate PrinterAgent.msi / cab*.cab in the attached container (WIX8500),
+           which otherwise overwrites payloads at extract time and triggers MSI "browse for source". -->
       <MsiPackage Id="UrsPrinterAgentMsi_it"
+                  Name="it-IT\PrinterAgent.msi"
                   SourceFile="$(var.PrinterAgent.Installer.TargetDir)it-IT\PrinterAgent.msi"
                   Compressed="yes"
                   Vital="yes"
                   InstallCondition="WixBundleCulture = &quot;it-IT&quot;" />
 
       <MsiPackage Id="UrsPrinterAgentMsi_en"
+                  Name="en-US\PrinterAgent.msi"
                   SourceFile="$(var.PrinterAgent.Installer.TargetDir)en-US\PrinterAgent.msi"
                   Compressed="yes"
                   Vital="yes"
