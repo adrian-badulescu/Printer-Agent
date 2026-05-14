@@ -83,8 +83,22 @@ public class BackendClient : IBackendClient
     public async Task UpdateJobStatusAsync(string jobId, PrintJobStatus status, CancellationToken cancellationToken = default)
     {
         var request = new { Status = status.ToString() };
-        // Using POST as proposed in the implementation plan
-        var response = await _httpClient.PostAsJsonAsync($"api/print-jobs/{Uri.EscapeDataString(jobId)}/status", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        const int maxAttempts = 4;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"api/print-jobs/{Uri.EscapeDataString(jobId)}/status",
+                request,
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+                return;
+
+            if ((int)response.StatusCode != 400 || attempt == maxAttempts)
+                response.EnsureSuccessStatusCode();
+
+            await Task.Delay(TimeSpan.FromMilliseconds(150 * attempt), cancellationToken);
+        }
     }
 }

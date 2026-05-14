@@ -80,21 +80,42 @@ public class AgentWorker : BackgroundService
     }
 
     /// <summary>
-    /// Consumatorul Redis rulează în paralel; prindem excepțiile neprevăzute aici (înainte erau pe Task neobservat).
+    /// Consumatorul Redis rulează în paralel; la erori fatale (ex. tunel WG indisponibil la pornire) reîncearcă.
     /// </summary>
     private async Task RunRedisConsumerSafelyAsync(string restaurantId, CancellationToken stoppingToken)
     {
-        try
+        var retryDelay = TimeSpan.FromSeconds(5);
+
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await _redisConsumer.StartConsumingAsync(restaurantId, stoppingToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // oprire serviciu
-        }
-        catch (Exception ex)
-        {
-            _logger.LogCritical(ex, "Redis stream consumer stopped with error (RestaurantId={RestaurantId}).", restaurantId);
+            try
+            {
+                await _redisConsumer.StartConsumingAsync(restaurantId, stoppingToken).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Redis stream consumer stopped (RestaurantId={RestaurantId}); retrying in {DelaySeconds}s.",
+                    restaurantId,
+                    retryDelay.TotalSeconds);
+
+                try
+                {
+                    await Task.Delay(retryDelay, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                retryDelay = TimeSpan.FromSeconds(Math.Min(retryDelay.TotalSeconds * 2, 60));
+            }
         }
     }
 }

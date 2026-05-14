@@ -53,7 +53,6 @@ public class PrintJobProcessor : IPrintJobProcessor
             return;
         }
 
-        await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Received, cancellationToken);
         await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Printing, cancellationToken);
 
         _logger.LogInformation(

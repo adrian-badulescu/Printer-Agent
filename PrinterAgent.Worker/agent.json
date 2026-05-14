@@ -4,7 +4,7 @@
   "BackendUrl": "http://localhost:7051",
   "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
-  "Version": "1.0.8",
+  "Version": "1.0.9",
   "MaxPrintRetryAttempts": 5,
   "PrintRetryBaseDelayMs": 1000,
   "PrinterConnectTimeoutSeconds": 15,

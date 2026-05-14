@@ -61,6 +61,8 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             // Group already exists, which is fine
         }
 
+        await DrainPendingMessagesAsync(db, streamName, groupName, consumerName, cancellationToken).ConfigureAwait(false);
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -74,24 +76,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
 
                 if (messages.Length > 0)
                 {
-                    var message = messages[0];
-                    var payloadJson = message.Values.FirstOrDefault(v => v.Name == "payload").Value.ToString();
-                    
-                    if (!string.IsNullOrEmpty(payloadJson))
-                    {
-                        var job = JsonSerializer.Deserialize<PrintJob>(payloadJson);
-                        if (job != null)
-                        {
-                            job.RedisMessageId = message.Id.ToString();
-                            _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
-
-                            await _printJobProcessor.ProcessJobAsync(job, cancellationToken);
-                            
-                            // Acknowledge the message
-                            await db.StreamAcknowledgeAsync(streamName, groupName, message.Id);
-                            _logger.LogInformation("Job {JobId} acknowledged.", job.RedisMessageId);
-                        }
-                    }
+                    await ProcessStreamMessageAsync(db, streamName, groupName, messages[0], cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
@@ -109,5 +94,54 @@ public class RedisStreamConsumer : IRedisStreamConsumer
                 await Task.Delay(5000, cancellationToken); // Backoff on error
             }
         }
+    }
+
+    private async Task DrainPendingMessagesAsync(
+        IDatabase db,
+        string streamName,
+        string groupName,
+        string consumerName,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var pending = await db.StreamReadGroupAsync(
+                streamName,
+                groupName,
+                consumerName,
+                "0",
+                count: 10).ConfigureAwait(false);
+
+            if (pending.Length == 0)
+                break;
+
+            foreach (var message in pending)
+            {
+                await ProcessStreamMessageAsync(db, streamName, groupName, message, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task ProcessStreamMessageAsync(
+        IDatabase db,
+        string streamName,
+        string groupName,
+        StreamEntry message,
+        CancellationToken cancellationToken)
+    {
+        var payloadJson = message.Values.FirstOrDefault(v => v.Name == "payload").Value.ToString();
+        if (string.IsNullOrEmpty(payloadJson))
+            return;
+
+        var job = JsonSerializer.Deserialize<PrintJob>(payloadJson);
+        if (job == null)
+            return;
+
+        job.RedisMessageId = message.Id.ToString();
+        _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
+
+        await _printJobProcessor.ProcessJobAsync(job, cancellationToken).ConfigureAwait(false);
+        await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
+        _logger.LogInformation("Job {JobId} acknowledged.", job.RedisMessageId);
     }
 }
