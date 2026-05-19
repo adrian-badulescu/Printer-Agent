@@ -3,7 +3,8 @@
 ## Current behavior
 
 - Printer-agent JWTs issued at enroll expire after the period configured on the backend (e.g. ~30 days).
-- There is **no refresh-token endpoint** in v1; renewal is done by **enrolling again** with a new manager-issued code.
+- Renewal uses **`POST /api/agents/refresh`** when `agent.session.json` still has a valid refresh token.
+- If the session file is missing but the device is still registered on the backend, **`POST /api/agents/enroll`** with a fresh manager-issued code **re-issues tokens** for the same `clientInstanceId` (same restaurant) instead of returning “already enrolled”.
 
 ## Agent behavior on 401 (heartbeat)
 

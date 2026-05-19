@@ -1,7 +1,7 @@
 {
   "RestaurantId": "",
   "EnrollmentCode": "",
-  "BackendUrl": "http://localhost:7051",
+  "BackendUrl": "http://192.168.43.142",
   "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
   "Version": "1.0.9",
