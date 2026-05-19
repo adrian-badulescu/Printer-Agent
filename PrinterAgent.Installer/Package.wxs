@@ -51,24 +51,14 @@
       <Directory Id="AGENTSTARTMENUDIR" Name="URS Printer Agent" />
     </StandardDirectory>
 
-    <!-- Runtime config lives here; seed on first install only (NeverOverwrite) so upgrades refresh the EXE-side template, not operator data. -->
+    <!-- Runtime: logs + operator overrides (Configurator writes agent.json here). Factory BackendUrl/Redis ship next to the EXE only. -->
     <StandardDirectory Id="CommonAppDataFolder">
       <Directory Id="AGENTPROGRAMDATAFOLDER" Name="URSPrinterAgent">
-        <!-- logs\ există la instalare (worker scrie aici fatal-startup / alte loguri); altfel utilizatorul vede doar agent.json. -->
         <Directory Id="AGENTPROGRAMDATALOGS" Name="logs" />
       </Directory>
     </StandardDirectory>
 
     <ComponentGroup Id="AgentProgramDataComponents" Directory="AGENTPROGRAMDATAFOLDER">
-      <!-- Without explicit ACLs, MSI often leaves only Administrators/SYSTEM able to write; Configurator runs as normal user. -->
-      <Component Id="AgentProgramDataAgentJson" Guid="e7c8d9a0-b1c2-4d5e-8f90-1a2b3c4d5e6f" Bitness="always64" NeverOverwrite="yes">
-        <CreateFolder>
-          <util:PermissionEx User="Users" GenericAll="yes" />
-        </CreateFolder>
-        <File Id="AgentProgramDataAgentJsonFile" Source="$(var.WorkerPublishDir)agent.json" KeyPath="yes">
-          <util:PermissionEx User="Users" GenericAll="yes" />
-        </File>
-      </Component>
       <Component Id="AgentProgramDataLogsFolder" Guid="a1f2e3d4-c5b6-4789-a012-3456789abcde" Directory="AGENTPROGRAMDATALOGS" Bitness="always64">
         <CreateFolder>
           <util:PermissionEx User="Users" GenericAll="yes" />

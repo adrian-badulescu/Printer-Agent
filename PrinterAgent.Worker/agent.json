@@ -4,7 +4,7 @@
   "BackendUrl": "http://192.168.43.142",
   "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
-  "Version": "1.0.9",
+  "Version": "1.0.12",
   "MaxPrintRetryAttempts": 5,
   "PrintRetryBaseDelayMs": 1000,
   "PrinterConnectTimeoutSeconds": 15,
@@ -13,22 +13,22 @@
     "BackendHealthPath": "api/ping-lite",
     "BackendHealthTimeoutSeconds": 10
   },
-    "WireGuard": {
-        "Enabled": true,
-        "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
-        "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
-        "WaitForTunnelServiceSeconds": 15,
-        "StartServiceIfStopped": true
-    },
-    "Redis": {
-        "Host": "10.8.0.1",
-        "Port": "6379",
-        "Password": "Santiagodechile2025##",
-        "Ssl": false,
-        "AbortConnect": false,
-        "ClientName": "URSPrinterAgent",
-        "StreamKeyPrefix": "print.jobs",
-        "ConsumerGroup": "printer-agents"
-    },
+  "WireGuard": {
+    "Enabled": true,
+    "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
+    "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
+    "WaitForTunnelServiceSeconds": 15,
+    "StartServiceIfStopped": true
+  },
+  "Redis": {
+    "Host": "10.8.0.1",
+    "Port": "6379",
+    "Password": "",
+    "Ssl": false,
+    "AbortConnect": false,
+    "ClientName": "URSPrinterAgent",
+    "StreamKeyPrefix": "print.jobs",
+    "ConsumerGroup": "printer-agents"
+  },
   "Printers": []
 }

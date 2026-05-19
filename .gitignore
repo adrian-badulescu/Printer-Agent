@@ -7,7 +7,6 @@
 .env
 
 # User-specific files
-agent.json
 *.rsuser
 *.suo
 *.user

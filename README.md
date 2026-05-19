@@ -51,7 +51,11 @@ Detalii suplimentare: [docs/TECHNICAL_PRINTER_AGENT_ENROLLMENT.md](docs/TECHNICA
 
 Valorile sunt limitate în cod la interval rezonabil (minim 1 minut, maxim 365 de zile exprimate în minute).
 
-## MSI (WiX) și Configurator
+## Release (CI) și instalare
+
+- **GitHub Actions:** tag `v*` → **`URSPrinterAgentSetup.exe`** (installer Burn: WireGuard + agent). Vezi [RELEASING.md](RELEASING.md).
+
+## MSI (WiX, build local / inclus în Setup.exe)
 
 - **MSI:** `dotnet build PrinterAgent.Installer/PrinterAgent.Installer.wixproj -c Release` generează `PrinterAgent.Installer/bin/Release/PrinterAgent.msi` plus `cab1.cab` / `cab2.cab` în același folder. Înainte de build, oprește serviciul **URSPrinterAgent** dacă apare *Access denied* la publish (EXE blocat). **`dotnet publish` pe `.wixproj` poate să nu regenereze MSI-ul**; folosește **`dotnet build`** pe proiectul de installer. La finalul instalării, checkbox-ul **„Pornește Configuratorul…”** (bifat implicit) lansează `PrinterAgent.Configurator.exe` după **Terminare**.
 - **Configurator (WPF):** după instalare, deschide **`C:\Program Files\URSPrinterAgent\`** (sau `Program Files (x86)` doar dacă ai forțat altfel). Acolo trebuie să fie `PrinterAgent.Configurator.exe` și shortcut-ul **Configure URS Printer Agent** lângă `PrinterAgent.Worker.exe`. **Nu** apare în Meniul Start (limitări ICE WiX pentru pachet per-machine). Dacă vezi doar worker-ul după ce ai avut deja un MSI mai vechi **fără** Configurator, Windows poate păstra fișierele vechi: **dezinstalează** „URS Printer Agent” din Setări → Aplicații, apoi instalează un MSI cu **versiune mai mare** (ex. 1.0.4 față de 1.0.3), sau rulează reparare din `msiexec /fvomus ...` după documentația Microsoft. Wizard: cod enroll, scan TCP 9100, imprimantă + `PrinterId`, salvare în `%ProgramData%\URSPrinterAgent\agent.json`. După editare config, **repornește serviciul**.

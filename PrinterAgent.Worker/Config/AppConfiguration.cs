@@ -26,9 +26,49 @@ public class AppConfiguration : IAppConfiguration
         }
     }
 
+    /// <summary>
+    /// Factory-shipped keys come from install-dir <c>agent.json</c> (next to the EXE) so delivered builds
+    /// work without manual ProgramData edits. Operator overrides (enrollment, printers) use ProgramData first.
+    /// </summary>
+    private static readonly HashSet<string> BundledFirstKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BackendUrl",
+        "UpdateSignatureSecret",
+        "Version",
+        "Redis:Host",
+        "Redis:Port",
+        "Redis:Password",
+        "Redis:User",
+        "Redis:Ssl",
+        "Redis:AbortConnect",
+        "Redis:ClientName",
+        "Redis:StreamKeyPrefix",
+        "Redis:ConsumerGroup",
+        "RedisConnectionString",
+        "Redis:ConnectionString",
+        "Connectivity:VerifyAtStartup",
+        "Connectivity:BackendHealthPath",
+        "Connectivity:BackendHealthTimeoutSeconds",
+        "WireGuard:Enabled",
+        "WireGuard:ConfigFilePath",
+        "WireGuard:WindowsTunnelServiceName",
+        "WireGuard:WaitForTunnelServiceSeconds",
+        "WireGuard:StartServiceIfStopped"
+    };
+
     /// <summary>Uses merged host config; if null/whitespace, uses install-dir <c>agent.json</c> only.</summary>
-    private string? MergedString(string key) =>
-        !string.IsNullOrWhiteSpace(_configuration[key]) ? _configuration[key] : _bundledInInstallDir?[key];
+    private string? MergedString(string key)
+    {
+        if (BundledFirstKeys.Contains(key))
+        {
+            var bundled = _bundledInInstallDir?[key];
+            if (!string.IsNullOrWhiteSpace(bundled))
+                return bundled;
+            return _configuration[key];
+        }
+
+        return !string.IsNullOrWhiteSpace(_configuration[key]) ? _configuration[key] : _bundledInInstallDir?[key];
+    }
 
     private bool MergedBool(string key, bool defaultValue)
     {

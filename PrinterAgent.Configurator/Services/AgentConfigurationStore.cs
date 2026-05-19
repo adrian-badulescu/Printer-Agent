@@ -24,6 +24,15 @@ public sealed class AgentConfigurationStore
                 return o;
         }
 
+        var bundledPath = Path.Combine(AppContext.BaseDirectory, "agent.json");
+        if (File.Exists(bundledPath))
+        {
+            var bundledText = File.ReadAllText(bundledPath);
+            var bundledNode = JsonNode.Parse(bundledText, documentOptions: AgentJsonDocumentOptions.ForRead);
+            if (bundledNode is JsonObject bundled)
+                return bundled;
+        }
+
         return CreateDefaultTemplate();
     }
 
@@ -39,7 +48,7 @@ public sealed class AgentConfigurationStore
         {
             ["RestaurantId"] = "",
             ["EnrollmentCode"] = "",
-            ["BackendUrl"] = "http://localhost:7051",
+            ["BackendUrl"] = "",
             ["BackendJwtToken"] = "",
             ["UpdateSignatureSecret"] = "change-me-same-as-backend-PrinterAgent",
             ["Version"] = "1.0.7",
