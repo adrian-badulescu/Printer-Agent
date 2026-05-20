@@ -15,7 +15,7 @@ using PrinterAgent.Infrastructure.System;
 using PrinterAgent.Worker;
 using PrinterAgent.Worker.Config;
 using PrinterAgent.Worker.Logging;
-using StackExchange.Redis;
+using PrinterAgent.Infrastructure.Redis;
 
 try
 {
@@ -82,13 +82,7 @@ try
             // WireGuard for Windows automation (install tunnel service from .conf).
             services.AddSingleton<IWireGuardTunnelManager, WireGuardWindowsTunnelManager>();
 
-            // Redis: conectare la prima folosire (după enroll), nu la rezolvarea IHostedService.
-            services.AddSingleton(sp =>
-            {
-                var config = sp.GetRequiredService<IAppConfiguration>();
-                return new Lazy<IConnectionMultiplexer>(() =>
-                    ConnectionMultiplexer.Connect(config.RedisConnectionString));
-            });
+            services.AddSingleton<IRedisConnectionMultiplexerHolder, RedisConnectionMultiplexerHolder>();
             services.AddTransient<IRedisStreamConsumer, RedisStreamConsumer>();
 
             services.AddHostedService<AgentEnrollmentHostedService>();

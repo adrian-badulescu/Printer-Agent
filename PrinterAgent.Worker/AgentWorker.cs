@@ -2,6 +2,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
+using PrinterAgent.Infrastructure.Redis;
+using StackExchange.Redis;
 using System.Linq;
 
 namespace PrinterAgent.Worker;
@@ -9,6 +11,7 @@ namespace PrinterAgent.Worker;
 public class AgentWorker : BackgroundService
 {
     private readonly IRedisStreamConsumer _redisConsumer;
+    private readonly IRedisConnectionMultiplexerHolder _redisHolder;
     private readonly IHeartbeatService _heartbeatService;
     private readonly IUpdateService _updateService;
     private readonly IAgentSessionStore _sessionStore;
@@ -17,6 +20,7 @@ public class AgentWorker : BackgroundService
 
     public AgentWorker(
         IRedisStreamConsumer redisConsumer,
+        IRedisConnectionMultiplexerHolder redisHolder,
         IHeartbeatService heartbeatService,
         IUpdateService updateService,
         IAgentSessionStore sessionStore,
@@ -24,6 +28,7 @@ public class AgentWorker : BackgroundService
         ILogger<AgentWorker> logger)
     {
         _redisConsumer = redisConsumer;
+        _redisHolder = redisHolder;
         _heartbeatService = heartbeatService;
         _updateService = updateService;
         _sessionStore = sessionStore;
@@ -96,6 +101,34 @@ public class AgentWorker : BackgroundService
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 return;
+            }
+            catch (RedisConnectionException ex)
+            {
+                // #region agent log
+                DebugSessionLog.Write("D", "AgentWorker.RunRedisConsumerSafelyAsync", "redis_connection_reset", new
+                {
+                    restaurantId,
+                    ex.Message,
+                    retryDelaySec = retryDelay.TotalSeconds
+                });
+                // #endregion
+                _redisHolder.Reset();
+                _logger.LogError(
+                    ex,
+                    "Redis stream consumer stopped (RestaurantId={RestaurantId}); connection reset, retrying in {DelaySeconds}s.",
+                    restaurantId,
+                    retryDelay.TotalSeconds);
+
+                try
+                {
+                    await Task.Delay(retryDelay, stoppingToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                retryDelay = TimeSpan.FromSeconds(Math.Min(retryDelay.TotalSeconds * 2, 60));
             }
             catch (Exception ex)
             {

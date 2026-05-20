@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Domain;
@@ -85,12 +86,20 @@ public class HeartbeatService : IHeartbeatService
                 .MergeArpEndpointsAsync(_appConfiguration.Printers, cancellationToken)
                 .ConfigureAwait(false);
 
+            var printersForHeartbeat = mergedPrinters.ToList();
+            foreach (var printer in printersForHeartbeat)
+            {
+                printer.Status = await IsPrinterReachableAsync(printer, cancellationToken).ConfigureAwait(false)
+                    ? PrinterStatus.Online
+                    : PrinterStatus.Offline;
+            }
+
             var agentInfo = new AgentInfo
             {
                 AgentId = agentId,
                 RestaurantId = restaurantId,
                 Version = _appConfiguration.Version,
-                Printers = mergedPrinters.ToList()
+                Printers = printersForHeartbeat
             };
 
             var ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
@@ -148,6 +157,25 @@ public class HeartbeatService : IHeartbeatService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send heartbeat.");
+        }
+    }
+
+    private static async Task<bool> IsPrinterReachableAsync(Printer printer, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(printer.IpAddress) || printer.Port <= 0)
+            return false;
+
+        try
+        {
+            using var client = new TcpClient();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            await client.ConnectAsync(printer.IpAddress, printer.Port, cts.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

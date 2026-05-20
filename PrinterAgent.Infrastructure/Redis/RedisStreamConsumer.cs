@@ -9,20 +9,20 @@ namespace PrinterAgent.Infrastructure.Redis;
 
 public class RedisStreamConsumer : IRedisStreamConsumer
 {
-    private readonly Lazy<IConnectionMultiplexer> _redisLazy;
+    private readonly IRedisConnectionMultiplexerHolder _redisHolder;
     private readonly IPrintJobProcessor _printJobProcessor;
     private readonly ILogger<RedisStreamConsumer> _logger;
     private readonly IAgentSessionStore _sessionStore;
     private readonly IAppConfiguration _appConfiguration;
 
     public RedisStreamConsumer(
-        Lazy<IConnectionMultiplexer> redisLazy,
+        IRedisConnectionMultiplexerHolder redisHolder,
         IPrintJobProcessor printJobProcessor,
         ILogger<RedisStreamConsumer> logger,
         IAgentSessionStore sessionStore,
         IAppConfiguration appConfiguration)
     {
-        _redisLazy = redisLazy;
+        _redisHolder = redisHolder;
         _printJobProcessor = printJobProcessor;
         _logger = logger;
         _sessionStore = sessionStore;
@@ -38,7 +38,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             return;
         }
 
-        var redis = _redisLazy.Value;
+        var redis = _redisHolder.Get();
         var db = redis.GetDatabase();
         var prefix = _appConfiguration.RedisStreamKeyPrefix.Trim().TrimEnd('.');
         var streamName = $"{prefix}.{restaurantId}";
