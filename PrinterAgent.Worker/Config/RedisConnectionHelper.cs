@@ -19,6 +19,21 @@ internal static partial class RedisConnectionHelper
     [GeneratedRegex("(?i)(password|token)=([^,]+)", RegexOptions.Compiled)]
     private static partial Regex PasswordTokenRegex();
 
+    /// <summary>
+    /// StackExchange.Redis treats <c>#</c> as start of an inline comment in unquoted values.
+    /// Passwords containing <c>#</c> (e.g. <c>secret##</c>) must be quoted or AUTH fails with NOAUTH.
+    /// </summary>
+    public static string QuoteConnectionValue(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        if (value.IndexOfAny(new[] { ',', '=', '#', '"' }) < 0)
+            return value;
+
+        return "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+    }
+
     /// <summary>Adaugă <c>abortConnect=</c> dacă lipsește (semantica StackExchange.Redis).</summary>
     public static string EnsureAbortConnect(string connectionString, bool abortConnect)
     {

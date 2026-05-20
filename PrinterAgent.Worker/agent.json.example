@@ -1,0 +1,34 @@
+{
+  "RestaurantId": "",
+  "EnrollmentCode": "",
+  "BackendUrl": "https://your-backend.example",
+  "BackendJwtToken": "",
+  "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
+  "Version": "1.0.0",
+  "MaxPrintRetryAttempts": 5,
+  "PrintRetryBaseDelayMs": 1000,
+  "PrinterConnectTimeoutSeconds": 15,
+  "Connectivity": {
+    "VerifyAtStartup": true,
+    "BackendHealthPath": "api/ping-lite",
+    "BackendHealthTimeoutSeconds": 10
+  },
+  "WireGuard": {
+    "Enabled": true,
+    "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
+    "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
+    "WaitForTunnelServiceSeconds": 15,
+    "StartServiceIfStopped": true
+  },
+  "Redis": {
+    "Host": "10.8.0.1",
+    "Port": "6379",
+    "Password": "",
+    "Ssl": false,
+    "AbortConnect": false,
+    "ClientName": "URSPrinterAgent",
+    "StreamKeyPrefix": "print.jobs",
+    "ConsumerGroup": "printer-agents"
+  },
+  "Printers": []
+}

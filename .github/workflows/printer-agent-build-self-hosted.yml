@@ -31,6 +31,22 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Inject Redis config from GitHub Secrets
+        shell: powershell
+        env:
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_USER: ${{ secrets.REDIS_USER }}
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
+          if (-not (Test-Path -LiteralPath $path)) { throw "Missing: $path" }
+          if (-not $env:REDIS_PASSWORD) { throw 'REDIS_PASSWORD repository secret is not set (Settings → Secrets and variables → Actions)' }
+          $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+          $json.Redis.Password = $env:REDIS_PASSWORD
+          if ($env:REDIS_HOST) { $json.Redis.Host = $env:REDIS_HOST }
+          if ($env:REDIS_USER) { $json.Redis.User = $env:REDIS_USER }
+          $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+
       - name: Build installer (Burn)
         run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
 

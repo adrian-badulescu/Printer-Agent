@@ -483,3 +483,7 @@ $RECYCLE.BIN/
 
 # Fetched at bundle build (see PrinterAgent.Bundle.wixproj EnsureWireGuardRedist)
 PrinterAgent.Bundle/redist/wireguard-installer.exe
+
+# Local build outputs (do not commit)
+_out/
+**/agent.local.json

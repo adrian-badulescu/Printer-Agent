@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -33,7 +34,7 @@ try
             _ = AgentProgramData.Root;
             var programDataAgentJson = Path.Combine(AgentProgramData.Root, "agent.json");
             config.AddJsonFile(bundledAgentJson, optional: true, reloadOnChange: false);
-            config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
+            AddProgramDataAgentJsonIfValid(config, programDataAgentJson);
         })
         .ConfigureLogging(logging =>
         {
@@ -105,6 +106,50 @@ catch (Exception ex)
 {
     TryWriteFatalStartupLog(ex);
     throw;
+}
+
+static void AddProgramDataAgentJsonIfValid(IConfigurationBuilder config, string programDataAgentJson)
+{
+    if (!File.Exists(programDataAgentJson))
+        return;
+
+    try
+    {
+        var json = File.ReadAllText(programDataAgentJson);
+        JsonDocument.Parse(json);
+        config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
+    }
+    catch (Exception ex)
+    {
+        TryWriteFatalStartupLog(ex);
+        TryWriteConfigSkipWarning(programDataAgentJson, ex);
+    }
+}
+
+static void TryWriteConfigSkipWarning(string path, Exception ex)
+{
+    try
+    {
+        var logDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            AgentProgramData.FolderName,
+            "logs");
+        Directory.CreateDirectory(logDir);
+        var warningPath = Path.Combine(logDir, "agent-json-invalid.txt");
+        File.WriteAllText(
+            warningPath,
+            $"""
+            {DateTime.UtcNow:O} UTC — agent.json was NOT loaded (invalid JSON). Service starts with install-dir defaults only.
+            File: {path}
+            Fix: use normal JSON quotes only (no backslash-escaped \" around values). For Redis passwords containing #, set "Password": "your-redis-password" in agent.json — do not hand-quote ConnectionString unless you know JSON escaping.
+
+            Error: {ex.Message}
+            """);
+    }
+    catch
+    {
+        // ignore
+    }
 }
 
 static void TryWriteFatalStartupLog(Exception ex)

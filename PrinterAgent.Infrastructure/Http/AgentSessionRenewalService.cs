@@ -10,6 +10,9 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
 {
     private const int MaxRefreshAttempts = 3;
 
+    /// <summary>Refresh rotates the token server-side; parallel refresh with the same token invalidates the session.</summary>
+    private static readonly SemaphoreSlim RefreshGate = new(1, 1);
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAgentSessionStore _sessionStore;
     private readonly ILogger<AgentSessionRenewalService> _logger;
@@ -29,106 +32,116 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
         CancellationToken cancellationToken = default,
         bool force = false)
     {
-        if (!force && _sessionStore.HasUsableSession(expirySkew))
-            return true;
-
-        if (string.IsNullOrWhiteSpace(_sessionStore.RefreshToken) || string.IsNullOrWhiteSpace(_sessionStore.AgentId))
-            return false;
-
-        var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
-        var client = _httpClientFactory.CreateClient("PrinterAgentEnroll");
-
-        for (var attempt = 1; attempt <= MaxRefreshAttempts; attempt++)
+        await RefreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            try
+            await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!force && _sessionStore.HasUsableSession(expirySkew))
+                return true;
+
+            if (string.IsNullOrWhiteSpace(_sessionStore.RefreshToken) || string.IsNullOrWhiteSpace(_sessionStore.AgentId))
+                return false;
+
+            var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
+            var client = _httpClientFactory.CreateClient("PrinterAgentEnroll");
+
+            for (var attempt = 1; attempt <= MaxRefreshAttempts; attempt++)
             {
-                using var response = await client.PostAsJsonAsync(
-                        "api/agents/refresh",
-                        new RefreshRequestBody
-                        {
-                            AgentId = _sessionStore.AgentId,
-                            ClientInstanceId = instanceId,
-                            RefreshToken = _sessionStore.RefreshToken
-                        },
-                        cancellationToken)
-                    .ConfigureAwait(false);
-
-                var code = (int)response.StatusCode;
-
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    var payload = await response.Content.ReadFromJsonAsync<RefreshResponseBody>(cancellationToken: cancellationToken)
-                        .ConfigureAwait(false);
-                    if (payload is null
-                        || string.IsNullOrWhiteSpace(payload.AccessToken)
-                        || string.IsNullOrWhiteSpace(payload.RefreshToken)
-                        || string.IsNullOrWhiteSpace(payload.RestaurantId))
-                    {
-                        _logger.LogWarning("Invalid refresh response.");
-                        return false;
-                    }
-
-                    await _sessionStore.SaveSessionAsync(
-                            _sessionStore.AgentId,
-                            payload.AccessToken,
-                            payload.RefreshToken,
-                            payload.RestaurantId,
-                            payload.ExpiresAtUtc,
+                    using var response = await client.PostAsJsonAsync(
+                            "api/agents/refresh",
+                            new RefreshRequestBody
+                            {
+                                AgentId = _sessionStore.AgentId,
+                                ClientInstanceId = instanceId,
+                                RefreshToken = _sessionStore.RefreshToken
+                            },
                             cancellationToken)
                         .ConfigureAwait(false);
 
-                    _logger.LogInformation("Access token renewed for agentId {AgentId}.", _sessionStore.AgentId);
-                    return true;
-                }
+                    var code = (int)response.StatusCode;
 
-                if (code == 401 || code == 403)
-                {
-                    var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    _logger.LogWarning("Refresh rejected ({Status}): {Body} — refresh token is no longer valid.", code, err);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var payload = await response.Content.ReadFromJsonAsync<RefreshResponseBody>(cancellationToken: cancellationToken)
+                            .ConfigureAwait(false);
+                        if (payload is null
+                            || string.IsNullOrWhiteSpace(payload.AccessToken)
+                            || string.IsNullOrWhiteSpace(payload.RefreshToken)
+                            || string.IsNullOrWhiteSpace(payload.RestaurantId))
+                        {
+                            _logger.LogWarning("Invalid refresh response.");
+                            return false;
+                        }
+
+                        await _sessionStore.SaveSessionAsync(
+                                _sessionStore.AgentId,
+                                payload.AccessToken,
+                                payload.RefreshToken,
+                                payload.RestaurantId,
+                                payload.ExpiresAtUtc,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+
+                        _logger.LogInformation("Access token renewed for agentId {AgentId}.", _sessionStore.AgentId);
+                        return true;
+                    }
+
+                    if (code == 401 || code == 403)
+                    {
+                        var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                        _logger.LogWarning("Refresh rejected ({Status}): {Body} — refresh token is no longer valid.", code, err);
+                        return false;
+                    }
+
+                    if (code == 429)
+                    {
+                        _logger.LogWarning("Refresh rejected (429); try again later.");
+                        return false;
+                    }
+
+                    if (IsTransientHttpStatus(code) && attempt < MaxRefreshAttempts)
+                    {
+                        var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                        _logger.LogWarning(
+                            "Refresh HTTP {Status} (attempt {Attempt}/{Max}); retrying after delay. {Body}",
+                            code,
+                            attempt,
+                            MaxRefreshAttempts,
+                            err);
+                        await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                    _logger.LogWarning("Refresh failed ({Status}): {Body}", code, body);
                     return false;
                 }
-
-                if (code == 429)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    _logger.LogWarning("Refresh rejected (429); try again later.");
-                    return false;
+                    throw;
                 }
-
-                if (IsTransientHttpStatus(code) && attempt < MaxRefreshAttempts)
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
                 {
-                    var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    _logger.LogWarning(
-                        "Refresh HTTP {Status} (attempt {Attempt}/{Max}); retrying after delay. {Body}",
-                        code,
-                        attempt,
-                        MaxRefreshAttempts,
-                        err);
+                    if (attempt >= MaxRefreshAttempts)
+                    {
+                        _logger.LogWarning(ex, "Refresh: network/timeout failure after {Max} attempts.", MaxRefreshAttempts);
+                        return false;
+                    }
+
+                    _logger.LogWarning(ex, "Refresh: transient error (attempt {Attempt}/{Max}).", attempt, MaxRefreshAttempts);
                     await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
-                    continue;
                 }
+            }
 
-                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                _logger.LogWarning("Refresh failed ({Status}): {Body}", code, body);
-                return false;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-            {
-                if (attempt >= MaxRefreshAttempts)
-                {
-                    _logger.LogWarning(ex, "Refresh: network/timeout failure after {Max} attempts.", MaxRefreshAttempts);
-                    return false;
-                }
-
-                _logger.LogWarning(ex, "Refresh: transient error (attempt {Attempt}/{Max}).", attempt, MaxRefreshAttempts);
-                await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
-            }
+            return false;
         }
-
-        return false;
+        finally
+        {
+            RefreshGate.Release();
+        }
     }
 
     private static bool IsTransientHttpStatus(int code) =>

@@ -170,9 +170,9 @@ public class AppConfiguration : IAppConfiguration
         if (!string.IsNullOrEmpty(password))
         {
             if (!string.IsNullOrWhiteSpace(user))
-                parts.Add($"user={user.Trim()}");
+                parts.Add($"user={RedisConnectionHelper.QuoteConnectionValue(user.Trim())}");
 
-            parts.Add($"password={password}");
+            parts.Add($"password={RedisConnectionHelper.QuoteConnectionValue(password)}");
         }
 
         parts.Add(ssl ? "ssl=true" : "ssl=false");

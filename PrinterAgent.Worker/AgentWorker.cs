@@ -108,9 +108,11 @@ public class AgentWorker : BackgroundService
                 DebugSessionLog.Write("D", "AgentWorker.RunRedisConsumerSafelyAsync", "redis_connection_reset", new
                 {
                     restaurantId,
+                    isAuthFailure = ex.Message.Contains("NOAUTH", StringComparison.OrdinalIgnoreCase)
+                        || ex.Message.Contains("AuthenticationFailure", StringComparison.OrdinalIgnoreCase),
                     ex.Message,
                     retryDelaySec = retryDelay.TotalSeconds
-                });
+                }, runId: "post-fix");
                 // #endregion
                 _redisHolder.Reset();
                 _logger.LogError(
