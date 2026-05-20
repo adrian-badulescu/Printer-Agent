@@ -10,6 +10,18 @@ The bundle output is built at:
 - Pick UI language from the dropdown on the first screen
 - Install
 
+### Windows service (automatic, no support scripts)
+
+MSI **1.0.14+** runs deferred actions on every install/upgrade (before `InstallServices`):
+
+- `sc stop` / `sc delete` (1062 if already stopped is OK)
+- `reg delete` of `HKLM\SYSTEM\CurrentControlSet\Services\URSPrinterAgent` when a zombie remains (`DISABLED` + `DeleteFlag=1`)
+- then `ServiceInstall` + `start= auto` + `sc start`
+
+**At restaurants:** only run the setup EXE from GitHub Releases/Artifacts. Do not ask clients to run `scripts/Cleanup-*.ps1`.
+
+**Broken install already on site:** ship the latest `URSPrinterAgentSetup.exe` and have them run it again (upgrade/repair); no on-site PowerShell.
+
 ### Silent install / upgrade
 
 ```powershell

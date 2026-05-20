@@ -4,7 +4,7 @@
 
   <Bundle Name="URS Printer Agent"
           Manufacturer="U.R.S."
-          Version="1.0.13.0"
+          Version="1.0.14.0"
           UpgradeCode="d2f29b2b-8a2e-46c8-9ad5-8d29e61d2d31">
 
     <BootstrapperApplication>

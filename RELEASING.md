@@ -30,6 +30,17 @@ GitHub → **Settings** → **Secrets and variables** → **Actions** → **New 
 
 După instalare, operatorul poate suprascrie enroll/imprimante în `%ProgramData%\URSPrinterAgent\agent.json`. Cheile Redis din MSI (lângă EXE) au prioritate dacă sunt non-goale.
 
+## Instalare la client (fără scripturi manuale)
+
+`URSPrinterAgentSetup.exe` de la GitHub Actions este singurul pas pentru restaurant:
+
+1. Rulează setup-ul (Administrator / UAC).
+2. La final, Configurator pentru enroll + imprimante.
+
+MSI **1.0.14+** curăță automat servicii zombie (`DISABLED` / `DeleteFlag`) înainte de `InstallServices` — **nu** e nevoie de `scripts/Cleanup-*.ps1` la client. Scripturile din `scripts/` sunt doar pentru suport intern pe mașini de dev.
+
+Dacă un client are deja o instalare stricată: trimite același link de download (ultimul release) și cere **reinstalare** peste ce există (MajorUpgrade); setup-ul repară înregistrarea serviciului.
+
 ## Cum publici
 
 1. Actualizează versiunea în `Package.wxs`, `Bundle.wxs`, și `Version` din `PrinterAgent.Worker/agent.json`.

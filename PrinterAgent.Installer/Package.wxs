@@ -2,7 +2,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.13.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
+  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.0.14.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
     <MajorUpgrade DowngradeErrorMessage="A newer version of URS Printer Agent is already installed." />
 
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
@@ -21,22 +21,21 @@
                   Return="asyncNoWait" />
 
     <!-- ServiceControl uneori nu elimină serviciul (ex. pachet x64 + msiexec 32-bit). CA amânat, SYSTEM, după StopServices. -->
+    <!-- sc delete leaves DeleteFlag=1 until reboot; reg delete removes zombie so ServiceInstall can succeed. -->
     <CustomAction Id="ForceRemoveUrsService"
                   Directory="System64Folder"
-                  ExeCommand="cmd.exe /c &quot;sc.exe stop URSPrinterAgent &amp; sc.exe delete URSPrinterAgent&quot;"
+                  ExeCommand="cmd.exe /c &quot;sc.exe stop URSPrinterAgent 2&gt;nul &amp; sc.exe delete URSPrinterAgent 2&gt;nul &amp; reg delete HKLM\SYSTEM\CurrentControlSet\Services\URSPrinterAgent /f 2&gt;nul&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
 
-    <!-- Orphan/disabled service from a failed upgrade blocks ServiceInstall; remove before recreating. -->
     <CustomAction Id="RemoveUrsServiceBeforeInstall"
                   Directory="System64Folder"
-                  ExeCommand="cmd.exe /c &quot;sc.exe stop URSPrinterAgent &amp; sc.exe delete URSPrinterAgent&quot;"
+                  ExeCommand="cmd.exe /c &quot;sc.exe stop URSPrinterAgent 2&gt;nul &amp; sc.exe delete URSPrinterAgent 2&gt;nul &amp; reg delete HKLM\SYSTEM\CurrentControlSet\Services\URSPrinterAgent /f 2&gt;nul&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
 
-    <!-- MajorUpgrade can leave the service DISABLED; ServiceInstall Start=auto is not always reapplied. -->
     <CustomAction Id="EnsureUrsServiceAutoStart"
                   Directory="System64Folder"
                   ExeCommand="cmd.exe /c sc.exe config URSPrinterAgent start= auto"
@@ -44,10 +43,20 @@
                   Impersonate="no"
                   Return="ignore" />
 
+    <!-- WiX StartServices can fail on zombie DISABLED service; force start after registration. -->
+    <CustomAction Id="StartUrsPrinterAgent"
+                  Directory="System64Folder"
+                  ExeCommand="cmd.exe /c sc.exe start URSPrinterAgent"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="ForceRemoveUrsService" After="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
-      <Custom Action="RemoveUrsServiceBeforeInstall" Before="InstallServices" Condition="NOT REMOVE" />
+      <!-- After files on disk, before ServiceInstall: remove DISABLED/DeleteFlag zombie (no manual scripts). -->
+      <Custom Action="RemoveUrsServiceBeforeInstall" After="InstallFiles" Before="InstallServices" Condition="NOT REMOVE" />
       <Custom Action="EnsureUrsServiceAutoStart" After="InstallServices" Condition="NOT REMOVE" />
+      <Custom Action="StartUrsPrinterAgent" After="StartServices" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
 
     <UI Id="AgentInstallerUI">
@@ -101,19 +110,13 @@
           Account="LocalSystem" 
           ErrorControl="normal" />
 
-        <!-- Stop/Remove explicit la uninstall (în plus față de ForceRemoveUrsService). -->
-        <ServiceControl 
-          Id="ServiceController" 
-          Start="install" 
-          Stop="both" 
-          Remove="uninstall" 
-          Name="URSPrinterAgent" 
-          Wait="yes" />
+        <!-- Single ServiceControl: duplicate Remove caused sc delete + DeleteFlag without reg cleanup. -->
         <ServiceControl
-          Id="ServiceControllerUninstall"
-          Stop="uninstall"
-          Remove="uninstall"
+          Id="ServiceController"
           Name="URSPrinterAgent"
+          Start="install"
+          Stop="install;uninstall"
+          Remove="uninstall"
           Wait="yes" />
       </Component>
       
