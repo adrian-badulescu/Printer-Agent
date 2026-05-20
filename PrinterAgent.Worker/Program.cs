@@ -20,6 +20,10 @@ using PrinterAgent.Infrastructure.Redis;
 
 try
 {
+    // #region agent log
+    LogServiceBootstrapDiagnostics();
+    // #endregion
+
     var host = Host.CreateDefaultBuilder(args)
         .UseWindowsService(options =>
         {
@@ -150,6 +154,34 @@ static void TryWriteConfigSkipWarning(string path, Exception ex)
     {
         // ignore
     }
+}
+
+static void LogServiceBootstrapDiagnostics()
+{
+    try
+    {
+        var exePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "PrinterAgent.Worker.exe");
+        var bundledJson = Path.Combine(AppContext.BaseDirectory, "agent.json");
+        var programDataJson = Path.Combine(AgentProgramData.Root, "agent.json");
+        string? startType = null;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\URSPrinterAgent");
+            startType = key?.GetValue("Start")?.ToString();
+        }
+        catch { /* ignore */ }
+
+        DebugSessionLog.Write("H1", "Program.cs:bootstrap", "service_registry", new
+        {
+            startType,
+            startTypeDisabled = startType == "4",
+            exePath,
+            exeExists = File.Exists(exePath),
+            bundledJsonExists = File.Exists(bundledJson),
+            programDataJsonExists = File.Exists(programDataJson)
+        });
+    }
+    catch { /* ignore */ }
 }
 
 static void TryWriteFatalStartupLog(Exception ex)

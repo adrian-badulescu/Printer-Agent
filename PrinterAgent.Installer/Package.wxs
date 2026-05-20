@@ -28,8 +28,17 @@
                   Impersonate="no"
                   Return="ignore" />
 
+    <!-- MajorUpgrade can leave the service DISABLED; ServiceInstall Start=auto is not always reapplied. -->
+    <CustomAction Id="EnsureUrsServiceAutoStart"
+                  Directory="System64Folder"
+                  ExeCommand="cmd.exe /c sc.exe config URSPrinterAgent start= auto"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="ForceRemoveUrsService" After="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
+      <Custom Action="EnsureUrsServiceAutoStart" After="StartServices" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
 
     <UI Id="AgentInstallerUI">
