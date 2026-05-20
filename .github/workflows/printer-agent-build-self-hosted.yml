@@ -49,6 +49,14 @@ jobs:
           $utf8NoBom = New-Object System.Text.UTF8Encoding $false
           [System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
 
+      - name: Verify Redis password was injected
+        shell: powershell
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
+          $pw = (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).Redis.Password
+          if ([string]::IsNullOrWhiteSpace($pw)) { throw 'Redis.Password is still empty after inject — check REDIS_PASSWORD secret' }
+          Write-Host "Redis.Password present for MSI build (length=$($pw.Length) chars, value not logged)."
+
       - name: Build installer (Burn)
         run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
 
