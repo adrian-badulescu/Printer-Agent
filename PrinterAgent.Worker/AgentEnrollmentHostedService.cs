@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.Versioning;
+using System.ServiceProcess;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -97,13 +99,14 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                             && _wireGuardTunnelManager.ServiceExists(_wireGuardOptions.Value.WindowsTunnelServiceName.Trim())
                     });
                     // #endregion
-                    // Already enrolled and access token is good.
+                    await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
+                    await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
@@ -257,6 +260,42 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         return value;
     }
 
+    private async Task TryProvisionWireGuardIfNeededAsync(CancellationToken cancellationToken)
+    {
+        var opt = _wireGuardOptions.Value;
+        if (!opt.Enabled)
+            return;
+
+        var path = opt.ConfigFilePath?.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var agentId = _sessionStore.AgentId;
+        if (string.IsNullOrWhiteSpace(agentId))
+            return;
+
+        var serviceName = ResolveTunnelServiceName(opt, path);
+        var confMissing = !File.Exists(path);
+        var serviceMissing = !string.IsNullOrWhiteSpace(serviceName)
+            && !_wireGuardTunnelManager.ServiceExists(serviceName);
+
+        if (!confMissing && !serviceMissing)
+            return;
+
+        // #region agent log
+        DebugSessionLog.Write("H1", "TryProvisionWireGuardIfNeededAsync", "retry_wg_provision", new
+        {
+            agentId,
+            confMissing,
+            serviceMissing,
+            path,
+            serviceName
+        });
+        // #endregion
+
+        await TryProvisionWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task TryProvisionWireGuardConfAsync(string agentId, CancellationToken cancellationToken)
     {
         try
@@ -298,17 +337,23 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             var existing = File.Exists(path) ? await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false) : null;
             if (string.Equals(existing, conf, StringComparison.Ordinal))
             {
+                var serviceName = ResolveTunnelServiceName(opt, path);
+                var serviceExists = !string.IsNullOrWhiteSpace(serviceName)
+                    && _wireGuardTunnelManager.ServiceExists(serviceName);
                 // #region agent log
-                DebugSessionLog.Write("H3", "TryProvisionWireGuardConfAsync", "conf_unchanged_skip_install", new
+                DebugSessionLog.Write("H3", "TryProvisionWireGuardConfAsync", "conf_unchanged", new
                 {
                     agentId,
                     path,
-                    installIfMissing = opt.InstallTunnelServiceIfMissing,
-                    serviceName = opt.WindowsTunnelServiceName,
-                    serviceExists = !string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName)
-                        && _wireGuardTunnelManager.ServiceExists(opt.WindowsTunnelServiceName.Trim())
+                    serviceName,
+                    serviceExists,
+                    installIfMissing = opt.InstallTunnelServiceIfMissing
                 });
                 // #endregion
+                if (opt.InstallTunnelServiceIfMissing && !serviceExists)
+                    await TryInstallTunnelServiceAsync(opt, path, cancellationToken).ConfigureAwait(false);
+                else if (serviceExists)
+                    TryStartTunnelService(opt, serviceName);
                 return;
             }
 
@@ -317,11 +362,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             _logger.LogInformation("WireGuard provisioning: wrote config to {Path}.", path);
 
             if (opt.InstallTunnelServiceIfMissing)
-            {
-                // Installing the tunnel service requires admin. The agent runs as a Windows service (LocalSystem),
-                // so this should work as long as WireGuard for Windows is installed.
                 await TryInstallTunnelServiceAsync(opt, path, cancellationToken).ConfigureAwait(false);
-            }
+            else
+                TryStartTunnelService(opt, ResolveTunnelServiceName(opt, path));
         }
         catch (Exception ex)
         {
@@ -336,13 +379,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
     {
         try
         {
-            var tunnelName = opt.TunnelName?.Trim();
-            if (string.IsNullOrWhiteSpace(tunnelName))
-                tunnelName = Path.GetFileNameWithoutExtension(confPath);
-
-            var serviceName = string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName)
-                ? $"WireGuardTunnel${tunnelName}"
-                : opt.WindowsTunnelServiceName.Trim();
+            var serviceName = ResolveTunnelServiceName(opt, confPath);
+            if (string.IsNullOrWhiteSpace(serviceName))
+                return;
 
             if (_wireGuardTunnelManager.ServiceExists(serviceName))
             {
@@ -350,6 +389,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 DebugSessionLog.Write("H4", "TryInstallTunnelServiceAsync", "service_already_exists", new { serviceName, confPath });
                 // #endregion
                 _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
+                TryStartTunnelService(opt, serviceName);
                 return;
             }
 
@@ -362,6 +402,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             // #region agent log
             DebugSessionLog.Write("H4", "TryInstallTunnelServiceAsync", "install_tunnel_ok", new { serviceName, confPath });
             // #endregion
+            TryStartTunnelService(opt, serviceName);
         }
         catch (Exception ex)
         {
@@ -370,6 +411,49 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             // #endregion
             _logger.LogWarning(ex, "WireGuard provisioning: failed to install tunnel service from {Path}.", confPath);
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private void TryStartTunnelService(WireGuardOptions opt, string serviceName)
+    {
+        if (!opt.StartServiceIfStopped || string.IsNullOrWhiteSpace(serviceName))
+            return;
+
+        try
+        {
+            using var sc = new ServiceController(serviceName);
+            if (sc.Status == ServiceControllerStatus.Running)
+                return;
+
+            if (sc.Status == ServiceControllerStatus.Stopped)
+            {
+                _logger.LogInformation("WireGuard provisioning: starting service {Service}...", serviceName);
+                sc.Start();
+            }
+
+            var timeout = TimeSpan.FromSeconds(Math.Clamp(opt.WaitForTunnelServiceSeconds, 5, 600));
+            sc.WaitForStatus(ServiceControllerStatus.Running, timeout);
+            _logger.LogInformation(
+                "WireGuard provisioning: service {Service} status is {Status}.",
+                serviceName,
+                sc.Status);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WireGuard provisioning: could not start service {Service}.", serviceName);
+        }
+    }
+
+    private static string ResolveTunnelServiceName(WireGuardOptions opt, string confPath)
+    {
+        if (!string.IsNullOrWhiteSpace(opt.WindowsTunnelServiceName))
+            return opt.WindowsTunnelServiceName.Trim();
+
+        var tunnelName = opt.TunnelName?.Trim();
+        if (string.IsNullOrWhiteSpace(tunnelName))
+            tunnelName = Path.GetFileNameWithoutExtension(confPath);
+
+        return string.IsNullOrWhiteSpace(tunnelName) ? string.Empty : $"WireGuardTunnel${tunnelName}";
     }
 
     /// <summary>

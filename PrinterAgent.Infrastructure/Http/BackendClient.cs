@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Domain;
 
@@ -8,11 +9,13 @@ public class BackendClient : IBackendClient
 {
     private readonly HttpClient _httpClient;
     private readonly IAppConfiguration _appConfiguration;
+    private readonly ILogger<BackendClient> _logger;
 
-    public BackendClient(HttpClient httpClient, IAppConfiguration appConfiguration)
+    public BackendClient(HttpClient httpClient, IAppConfiguration appConfiguration, ILogger<BackendClient> logger)
     {
         _httpClient = httpClient;
         _appConfiguration = appConfiguration;
+        _logger = logger;
 
         var baseUrl = _appConfiguration.BackendUrl?.Trim();
         if (string.IsNullOrEmpty(baseUrl))
@@ -37,10 +40,16 @@ public class BackendClient : IBackendClient
         var url = $"api/agents/{Uri.EscapeDataString(agentId)}/wireguard-conf";
         var response = await _httpClient.GetAsync(url, cancellationToken);
         var code = (int)response.StatusCode;
-        if (code == 401 || code == 403 || code == 404)
-            return null;
         if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogWarning(
+                "GET {Url} failed with HTTP {StatusCode}: {Body}",
+                url,
+                code,
+                string.IsNullOrWhiteSpace(body) ? "<empty>" : body.Trim());
             return null;
+        }
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
