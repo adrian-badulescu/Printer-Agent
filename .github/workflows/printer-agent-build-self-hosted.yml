@@ -45,7 +45,9 @@ jobs:
           $json.Redis.Password = $env:REDIS_PASSWORD
           if ($env:REDIS_HOST) { $json.Redis.Host = $env:REDIS_HOST }
           if ($env:REDIS_USER) { $json.Redis.User = $env:REDIS_USER }
-          $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
+          $content = $json | ConvertTo-Json -Depth 20
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
 
       - name: Build installer (Burn)
         run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
