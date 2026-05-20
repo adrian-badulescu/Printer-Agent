@@ -40,7 +40,7 @@ jobs:
         run: |
           $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
           if (-not (Test-Path -LiteralPath $path)) { throw "Missing: $path" }
-          if (-not $env:REDIS_PASSWORD) { throw 'REDIS_PASSWORD repository secret is not set (Settings → Secrets and variables → Actions)' }
+          if (-not $env:REDIS_PASSWORD) { throw 'REDIS_PASSWORD repository secret is not set. Add it under Settings > Secrets and variables > Actions.' }
           $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
           $json.Redis.Password = $env:REDIS_PASSWORD
           if ($env:REDIS_HOST) { $json.Redis.Host = $env:REDIS_HOST }
