@@ -87,18 +87,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
-                    // #region agent log
-                    DebugSessionLog.Write("H1", "AgentEnrollmentHostedService.cs:loop", "skip_enrollment_usable_session", new
-                    {
-                        agentId = _sessionStore.AgentId,
-                        wgEnabled = _wireGuardOptions.Value.Enabled,
-                        confPath = _wireGuardOptions.Value.ConfigFilePath,
-                        confExists = File.Exists(_wireGuardOptions.Value.ConfigFilePath ?? ""),
-                        serviceName = _wireGuardOptions.Value.WindowsTunnelServiceName,
-                        serviceExists = !string.IsNullOrWhiteSpace(_wireGuardOptions.Value.WindowsTunnelServiceName)
-                            && _wireGuardTunnelManager.ServiceExists(_wireGuardOptions.Value.WindowsTunnelServiceName.Trim())
-                    });
-                    // #endregion
                     await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -111,13 +99,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 }
 
                 var code = _appConfiguration.EnrollmentCode;
-                // #region agent log
-                DebugSessionLog.Write("H6", "AgentEnrollmentHostedService.RunEnrollmentLoopAsync", "enrollment_code_resolve", new
-                {
-                    fromAppConfig = !string.IsNullOrWhiteSpace(code),
-                    programDataFileExists = File.Exists(Path.Combine(AgentProgramData.Root, "agent.json"))
-                });
-                // #endregion
                 if (string.IsNullOrWhiteSpace(code))
                 {
                     if (!warnedMissingCode)
@@ -226,9 +207,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
         _logger.LogInformation("Enrollment succeeded for agentId {AgentId}.", payload.AgentId);
 
-        // #region agent log
-        DebugSessionLog.Write("H5", "AgentEnrollmentHostedService.cs:enroll_ok", "enroll_success_will_provision_wg", new { agentId = payload.AgentId });
-        // #endregion
         await TryProvisionWireGuardConfAsync(payload.AgentId, cancellationToken).ConfigureAwait(false);
         return true;
     }
@@ -289,17 +267,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         if (!confMissing && !serviceMissing)
             return;
 
-        // #region agent log
-        DebugSessionLog.Write("H1", "TryProvisionWireGuardIfNeededAsync", "retry_wg_provision", new
-        {
-            agentId,
-            confMissing,
-            serviceMissing,
-            path,
-            serviceName
-        });
-        // #endregion
-
         await TryProvisionWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
     }
 
@@ -309,31 +276,13 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         {
             var opt = _wireGuardOptions.Value;
             if (!opt.Enabled)
-            {
-                // #region agent log
-                DebugSessionLog.Write("H2", "TryProvisionWireGuardConfAsync", "wg_disabled", new { agentId });
-                // #endregion
                 return;
-            }
 
             var path = opt.ConfigFilePath?.Trim();
             if (string.IsNullOrWhiteSpace(path))
-            {
-                // #region agent log
-                DebugSessionLog.Write("H2", "TryProvisionWireGuardConfAsync", "no_config_path", new { agentId });
-                // #endregion
                 return;
-            }
 
             var conf = await _backendClient.GetWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
-            // #region agent log
-            DebugSessionLog.Write("H2", "TryProvisionWireGuardConfAsync", "backend_conf_fetched", new
-            {
-                agentId,
-                confLength = conf?.Length ?? 0,
-                confEmpty = string.IsNullOrWhiteSpace(conf)
-            });
-            // #endregion
             if (string.IsNullOrWhiteSpace(conf))
             {
                 _logger.LogWarning("WireGuard provisioning: backend did not return a .conf for agentId {AgentId}.", agentId);
@@ -347,16 +296,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 var serviceName = ResolveTunnelServiceName(opt, path);
                 var serviceExists = !string.IsNullOrWhiteSpace(serviceName)
                     && _wireGuardTunnelManager.ServiceExists(serviceName);
-                // #region agent log
-                DebugSessionLog.Write("H3", "TryProvisionWireGuardConfAsync", "conf_unchanged", new
-                {
-                    agentId,
-                    path,
-                    serviceName,
-                    serviceExists,
-                    installIfMissing = opt.InstallTunnelServiceIfMissing
-                });
-                // #endregion
                 if (opt.InstallTunnelServiceIfMissing && !serviceExists)
                     await TryInstallTunnelServiceAsync(opt, path, cancellationToken).ConfigureAwait(false);
                 else if (serviceExists)
@@ -375,9 +314,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            // #region agent log
-            DebugSessionLog.Write("H2", "TryProvisionWireGuardConfAsync", "provision_exception", new { agentId, exType = ex.GetType().Name, ex.Message });
-            // #endregion
             _logger.LogWarning(ex, "WireGuard provisioning: failed to download/write .conf; continuing without blocking enrollment.");
         }
     }
@@ -392,9 +328,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
             if (_wireGuardTunnelManager.ServiceExists(serviceName))
             {
-                // #region agent log
-                DebugSessionLog.Write("H4", "TryInstallTunnelServiceAsync", "service_already_exists", new { serviceName, confPath });
-                // #endregion
                 _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
                 TryStartTunnelService(opt, serviceName);
                 return;
@@ -406,16 +339,10 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 confPath);
 
             await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
-            // #region agent log
-            DebugSessionLog.Write("H4", "TryInstallTunnelServiceAsync", "install_tunnel_ok", new { serviceName, confPath });
-            // #endregion
             TryStartTunnelService(opt, serviceName);
         }
         catch (Exception ex)
         {
-            // #region agent log
-            DebugSessionLog.Write("H4", "TryInstallTunnelServiceAsync", "install_tunnel_failed", new { confPath, exType = ex.GetType().Name, ex.Message });
-            // #endregion
             _logger.LogWarning(ex, "WireGuard provisioning: failed to install tunnel service from {Path}.", confPath);
         }
     }

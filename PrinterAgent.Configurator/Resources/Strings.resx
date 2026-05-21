@@ -135,5 +135,21 @@
   <data name="RefreshIp_Running" xml:space="preserve">
     <value>Resolving printer addresses…</value>
   </data>
+
+  <data name="Manage_SectionTitle" xml:space="preserve">
+    <value>Saved printers</value>
+  </data>
+  <data name="Manage_Empty" xml:space="preserve">
+    <value>(no printers saved)</value>
+  </data>
+  <data name="Manage_DeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Manage_DeleteTitle" xml:space="preserve">
+    <value>Delete printer</value>
+  </data>
+  <data name="Manage_DeleteConfirm" xml:space="preserve">
+    <value>Delete printer '{0}' from agent.json?</value>
+  </data>
 </root>
 

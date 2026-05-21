@@ -12,6 +12,15 @@ using PrinterAgent.Domain;
 
 namespace PrinterAgent.Configurator;
 
+public sealed class PrinterListRow
+{
+    public string Id { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string IpAddress { get; init; } = string.Empty;
+    public int Port { get; init; }
+    public string Endpoint => string.IsNullOrWhiteSpace(IpAddress) ? "?" : $"{IpAddress}:{Port}";
+}
+
 public partial class MainWindow
 {
     private static readonly Regex EnrollmentCodeRegex = new("^[A-Za-z0-9]{6,32}$", RegexOptions.Compiled);
@@ -24,9 +33,15 @@ public partial class MainWindow
     private bool _printerIdProgrammaticChange;
     private IPAddress? _selectedHost;
 
+    public ObservableCollection<PrinterListRow> ExistingPrinters { get; } = new();
+
+    public string ExistingPrintersTitleText => UiStrings.Get("Manage_SectionTitle");
+    public string DeleteButtonText => UiStrings.Get("Manage_DeleteButton");
+
     public MainWindow()
     {
         InitializeComponent();
+        DataContext = this;
         Loaded += MainWindow_OnLoaded;
     }
 
@@ -75,7 +90,104 @@ public partial class MainWindow
         if (preferred != null)
             NicCombo.SelectedItem = preferred;
 
+        ReloadExistingPrintersList();
         UpdateStepUi();
+    }
+
+    private void ReloadExistingPrintersList()
+    {
+        ExistingPrinters.Clear();
+        try
+        {
+            var root = _store.LoadOrCreateTemplate();
+            if (root["Printers"] is not JsonArray arr)
+            {
+                UpdateExistingPrintersVisibility();
+                return;
+            }
+
+            foreach (var p in arr)
+            {
+                if (p is not JsonObject o)
+                    continue;
+
+                var id = o["id"]?.GetValue<string>() ?? o["Id"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(id))
+                    continue;
+
+                var name = o["name"]?.GetValue<string>() ?? o["Name"]?.GetValue<string>() ?? id;
+                var ip = o["ipAddress"]?.GetValue<string>() ?? o["IpAddress"]?.GetValue<string>() ?? string.Empty;
+                var port = 9100;
+                if (o["port"] is JsonValue pv && pv.TryGetValue(out int pi))
+                    port = pi;
+                else if (o["Port"] is JsonValue pv2 && pv2.TryGetValue(out int pi2))
+                    port = pi2;
+
+                ExistingPrinters.Add(new PrinterListRow
+                {
+                    Id = id,
+                    Name = name,
+                    IpAddress = ip,
+                    Port = port
+                });
+            }
+        }
+        catch
+        {
+            // ignore: empty list is the safe fallback for the UI panel
+        }
+
+        UpdateExistingPrintersVisibility();
+    }
+
+    private void UpdateExistingPrintersVisibility()
+    {
+        // Panels are bound by x:Name in XAML; toggle visibility by population, never by step alone.
+        var visibility = ExistingPrinters.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (ExistingPrintersBorderStep0 != null)
+            ExistingPrintersBorderStep0.Visibility = visibility;
+        if (ExistingPrintersBorderStep3 != null)
+            ExistingPrintersBorderStep3.Visibility = visibility;
+    }
+
+    private void DeletePrinter_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string id || string.IsNullOrWhiteSpace(id))
+            return;
+
+        var confirm = MessageBox.Show(
+            this,
+            UiStrings.Format("Manage_DeleteConfirm", id),
+            UiStrings.Get("Manage_DeleteTitle"),
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            var root = _store.LoadOrCreateTemplate();
+            if (root["Printers"] is JsonArray arr)
+            {
+                for (var i = arr.Count - 1; i >= 0; i--)
+                {
+                    var pid = arr[i]?["id"]?.GetValue<string>() ?? arr[i]?["Id"]?.GetValue<string>();
+                    if (string.Equals(pid, id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        arr.RemoveAt(i);
+                        break;
+                    }
+                }
+
+                _store.Save(root);
+            }
+
+            ReloadExistingPrintersList();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, UiStrings.Get("Manage_DeleteTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ApplyAgentJsonPathText()
@@ -290,6 +402,7 @@ public partial class MainWindow
             printers.Add(entry);
 
             await Task.Run(() => _store.Save(root)).ConfigureAwait(true);
+            ReloadExistingPrintersList();
 
             _step = 3;
             DoneMessageText.Text =
@@ -489,6 +602,7 @@ public partial class MainWindow
                 MessageBoxButton.OK,
                 ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
             ApplyAgentJsonPathText();
+            ReloadExistingPrintersList();
         }
         finally
         {

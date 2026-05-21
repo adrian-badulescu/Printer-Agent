@@ -115,5 +115,21 @@
   <data name="ReadAgentJsonFailed" xml:space="preserve">
     <value>Nu s-a putut citi agent.json: {0}</value>
   </data>
+
+  <data name="Manage_SectionTitle" xml:space="preserve">
+    <value>Imprimante salvate</value>
+  </data>
+  <data name="Manage_Empty" xml:space="preserve">
+    <value>(nicio imprimantă salvată)</value>
+  </data>
+  <data name="Manage_DeleteButton" xml:space="preserve">
+    <value>Șterge</value>
+  </data>
+  <data name="Manage_DeleteTitle" xml:space="preserve">
+    <value>Ștergere imprimantă</value>
+  </data>
+  <data name="Manage_DeleteConfirm" xml:space="preserve">
+    <value>Ștergi imprimanta „{0}” din agent.json?</value>
+  </data>
 </root>
 

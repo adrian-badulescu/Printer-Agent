@@ -31,17 +31,6 @@ public sealed class WireGuardTunnelHostedService : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var opt = _options.Value;
-        // #region agent log
-        DebugSessionLog.Write("H5", "WireGuardTunnelHostedService.StartAsync", "tunnel_bootstrap_start", new
-        {
-            opt.Enabled,
-            opt.ConfigFilePath,
-            confExists = !string.IsNullOrWhiteSpace(opt.ConfigFilePath) && File.Exists(opt.ConfigFilePath),
-            opt.WindowsTunnelServiceName,
-            opt.InstallTunnelServiceIfMissing,
-            opt.StartServiceIfStopped
-        });
-        // #endregion
         if (!opt.Enabled)
             return Task.CompletedTask;
 
@@ -102,14 +91,6 @@ public sealed class WireGuardTunnelHostedService : IHostedService
         }
         catch (InvalidOperationException ex)
         {
-            // #region agent log
-            DebugSessionLog.Write("H5", "WireGuardTunnelHostedService.StartAsync", "service_not_found", new
-            {
-                serviceName,
-                ex.Message,
-                willTryInstall = opt.InstallTunnelServiceIfMissing && File.Exists(opt.ConfigFilePath ?? "")
-            });
-            // #endregion
             if (opt.InstallTunnelServiceIfMissing && !string.IsNullOrWhiteSpace(opt.ConfigFilePath) && File.Exists(opt.ConfigFilePath))
             {
                 _logger.LogWarning(
