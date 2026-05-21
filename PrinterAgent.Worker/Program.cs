@@ -16,7 +16,6 @@ using PrinterAgent.Infrastructure.System;
 using PrinterAgent.Worker;
 using PrinterAgent.Worker.Config;
 using PrinterAgent.Worker.Logging;
-using PrinterAgent.Infrastructure.Redis;
 
 try
 {

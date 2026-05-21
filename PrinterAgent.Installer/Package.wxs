@@ -54,7 +54,7 @@
     <InstallExecuteSequence>
       <Custom Action="ForceRemoveUrsService" After="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
       <!-- After files on disk, before ServiceInstall: remove DISABLED/DeleteFlag zombie (no manual scripts). -->
-      <Custom Action="RemoveUrsServiceBeforeInstall" After="InstallFiles" Before="InstallServices" Condition="NOT REMOVE" />
+      <Custom Action="RemoveUrsServiceBeforeInstall" Before="InstallServices" Condition="NOT REMOVE" />
       <Custom Action="EnsureUrsServiceAutoStart" After="InstallServices" Condition="NOT REMOVE" />
       <Custom Action="StartUrsPrinterAgent" After="StartServices" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
