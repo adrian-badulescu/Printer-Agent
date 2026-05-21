@@ -32,9 +32,9 @@ jobs:
         shell: powershell
         run: |
           $sdk = dotnet --list-sdks 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { throw "dotnet CLI not on PATH. Install .NET 10 SDK on this self-hosted runner." }
-          if ($sdk -notmatch '10\.') { throw "No .NET 10 SDK found. Install from https://dotnet.microsoft.com/download — output:`n$sdk" }
-          Write-Host "dotnet SDK OK:"
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet CLI not on PATH. Install .NET 10 SDK on this self-hosted runner.' }
+          if ($sdk -notmatch '10\.') { throw "No .NET 10 SDK found. Install from https://dotnet.microsoft.com/download. Installed SDKs:`n$sdk" }
+          Write-Host 'dotnet SDK OK:'
           dotnet --list-sdks | Select-String '10\.'
 
       - name: Inject Redis config from GitHub Secrets
@@ -60,7 +60,7 @@ jobs:
         run: |
           $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
           $pw = (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).Redis.Password
-          if ([string]::IsNullOrWhiteSpace($pw)) { throw 'Redis.Password is still empty after inject — check REDIS_PASSWORD secret' }
+          if ([string]::IsNullOrWhiteSpace($pw)) { throw 'Redis.Password is still empty after inject. Check REDIS_PASSWORD secret.' }
           Write-Host "Redis.Password present for MSI build (length=$($pw.Length) chars, value not logged)."
 
       - name: Build installer (Burn)
