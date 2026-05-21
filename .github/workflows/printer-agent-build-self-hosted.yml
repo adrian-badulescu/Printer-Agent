@@ -2,7 +2,7 @@
 # Release asset: single .exe (no ZIP). FE: .../releases/download/vX.Y.Z/URSPrinterAgentSetup.exe
 #
 # Triggers: push main/master (artifact), tag v* (GitHub Release), workflow_dispatch.
-# Runner: self-hosted Windows. Git + .NET 10 SDK.
+# Runner: self-hosted Windows with .NET 10 SDK pre-installed (no setup-dotnet; runner user cannot write to Program Files).
 
 name: Printer Agent build (self-hosted)
 
@@ -26,10 +26,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      # Self-hosted: SDK must already be on the machine (install once as Admin).
+      # setup-dotnet tries to write under C:\Program Files\dotnet and fails for the runner service account.
+      - name: Verify .NET 10 SDK (pre-installed on runner)
+        shell: powershell
+        run: |
+          $sdk = dotnet --list-sdks 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "dotnet CLI not on PATH. Install .NET 10 SDK on this self-hosted runner." }
+          if ($sdk -notmatch '10\.') { throw "No .NET 10 SDK found. Install from https://dotnet.microsoft.com/download — output:`n$sdk" }
+          Write-Host "dotnet SDK OK:"
+          dotnet --list-sdks | Select-String '10\.'
 
       - name: Inject Redis config from GitHub Secrets
         shell: powershell

@@ -3,7 +3,7 @@
 ## Cerințe
 
 - Runner **self-hosted** Windows (`self-hosted`, `Windows`).
-- .NET SDK 10 pe runner.
+- **.NET 10 SDK instalat o dată pe mașina runner** (Administrator), pe PATH — workflow-ul **nu** rulează `setup-dotnet` (contul serviciului GitHub Actions nu poate scrie în `C:\Program Files\dotnet`).
 - Secret **Actions** în repo: `REDIS_PASSWORD` (obligatoriu pentru build CI). Opțional: `REDIS_HOST`, `REDIS_USER`.
 
 ## Secrete Redis (nu în Git)
