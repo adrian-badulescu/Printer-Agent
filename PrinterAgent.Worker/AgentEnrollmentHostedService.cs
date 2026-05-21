@@ -111,6 +111,13 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 }
 
                 var code = _appConfiguration.EnrollmentCode;
+                // #region agent log
+                DebugSessionLog.Write("H6", "AgentEnrollmentHostedService.RunEnrollmentLoopAsync", "enrollment_code_resolve", new
+                {
+                    fromAppConfig = !string.IsNullOrWhiteSpace(code),
+                    programDataFileExists = File.Exists(Path.Combine(AgentProgramData.Root, "agent.json"))
+                });
+                // #endregion
                 if (string.IsNullOrWhiteSpace(code))
                 {
                     if (!warnedMissingCode)

@@ -37,8 +37,10 @@ try
             var bundledAgentJson = Path.Combine(AppContext.BaseDirectory, "agent.json");
             _ = AgentProgramData.Root;
             var programDataAgentJson = Path.Combine(AgentProgramData.Root, "agent.json");
+            EnsureProgramDataAgentJsonForConfiguration(bundledAgentJson, programDataAgentJson);
+            ValidateProgramDataAgentJsonOrWarn(programDataAgentJson);
             config.AddJsonFile(bundledAgentJson, optional: true, reloadOnChange: false);
-            AddProgramDataAgentJsonIfValid(config, programDataAgentJson);
+            config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
         })
         .ConfigureLogging(logging =>
         {
@@ -112,16 +114,36 @@ catch (Exception ex)
     throw;
 }
 
-static void AddProgramDataAgentJsonIfValid(IConfigurationBuilder config, string programDataAgentJson)
+/// <summary>
+/// Ensures ProgramData agent.json exists at host build so reloadOnChange watches the path Configurator writes to.
+/// </summary>
+static void EnsureProgramDataAgentJsonForConfiguration(string bundledAgentJson, string programDataAgentJson)
+{
+    try
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(programDataAgentJson)!);
+        if (File.Exists(programDataAgentJson))
+            return;
+
+        if (File.Exists(bundledAgentJson))
+            File.Copy(bundledAgentJson, programDataAgentJson);
+        else
+            File.WriteAllText(programDataAgentJson, "{}");
+    }
+    catch (Exception ex)
+    {
+        TryWriteConfigSkipWarning(programDataAgentJson, ex);
+    }
+}
+
+static void ValidateProgramDataAgentJsonOrWarn(string programDataAgentJson)
 {
     if (!File.Exists(programDataAgentJson))
         return;
 
     try
     {
-        var json = File.ReadAllText(programDataAgentJson);
-        JsonDocument.Parse(json);
-        config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
+        JsonDocument.Parse(File.ReadAllText(programDataAgentJson));
     }
     catch (Exception ex)
     {

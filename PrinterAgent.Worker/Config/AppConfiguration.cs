@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Domain;
@@ -85,6 +86,8 @@ public class AppConfiguration : IAppConfiguration
         get
         {
             var v = MergedString("EnrollmentCode");
+            if (string.IsNullOrWhiteSpace(v))
+                v = ProgramDataAgentJsonReader.GetString("EnrollmentCode");
             return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
         }
     }
@@ -135,8 +138,37 @@ public class AppConfiguration : IAppConfiguration
             _configuration.GetSection("Printers").Bind(printers);
             if (printers.Count == 0 && _bundledInInstallDir != null)
                 _bundledInInstallDir.GetSection("Printers").Bind(printers);
+            if (printers.Count == 0)
+                printers = BindPrintersFromProgramData();
             return printers;
         }
+    }
+
+    private static List<Printer> BindPrintersFromProgramData()
+    {
+        var root = ProgramDataAgentJsonReader.GetRootElement();
+        if (root is null || !root.Value.TryGetProperty("Printers", out var arr) || arr.ValueKind != JsonValueKind.Array)
+            return [];
+
+        var list = new List<Printer>();
+        foreach (var item in arr.EnumerateArray())
+        {
+            try
+            {
+                var p = JsonSerializer.Deserialize<Printer>(item.GetRawText(), new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (p is not null && !string.IsNullOrWhiteSpace(p.Id))
+                    list.Add(p);
+            }
+            catch
+            {
+                // skip invalid entry
+            }
+        }
+
+        return list;
     }
 
     /// <summary>
