@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
+using PrinterAgent.Infrastructure.Diagnostics;
 using PrinterAgent.Infrastructure.Redis;
 using StackExchange.Redis;
 using System.Linq;
@@ -104,6 +105,16 @@ public class AgentWorker : BackgroundService
             }
             catch (RedisConnectionException ex)
             {
+                // #region agent log
+                DebugSessionLog.Write("H1", "AgentWorker.RunRedisConsumerSafelyAsync", "redis_consumer_stopped", new
+                {
+                    restaurantId,
+                    isNoAuth = ex.Message.Contains("NOAUTH", StringComparison.OrdinalIgnoreCase)
+                               || ex.Message.Contains("AuthenticationFailure", StringComparison.OrdinalIgnoreCase),
+                    message = ex.Message,
+                    retryDelaySec = retryDelay.TotalSeconds
+                });
+                // #endregion
                 _redisHolder.Reset();
                 _logger.LogError(
                     ex,
