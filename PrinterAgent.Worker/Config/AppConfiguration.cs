@@ -114,31 +114,7 @@ public class AppConfiguration : IAppConfiguration
 
         // StackExchange.Redis: abortConnect=false = do not give up at startup if Redis comes up later (e.g. VPN).
         var abortConnect = MergedBool("Redis:AbortConnect", true);
-        var final = RedisConnectionHelper.EnsureAbortConnect(resolved, abortConnect);
-
-        // #region agent log
-        try
-        {
-            var passwordRaw = MergedString("Redis:Password") ?? string.Empty;
-            PrinterAgent.Infrastructure.Diagnostics.DebugSessionLog.Write(
-                "H1",
-                "AppConfiguration.BuildFinalRedisConnectionString",
-                "redis_connection_string_built",
-                new
-                {
-                    summary = RedisConnectionHelper.RedactForLogs(final),
-                    length = final.Length,
-                    passwordPresent = final.Contains("password=", StringComparison.OrdinalIgnoreCase),
-                    passwordQuoted = System.Text.RegularExpressions.Regex.IsMatch(final, "password=\""),
-                    containsHashUnquoted = System.Text.RegularExpressions.Regex.IsMatch(final, "password=[^\",]*#"),
-                    passwordLength = passwordRaw.Length,
-                    passwordHasHash = passwordRaw.Contains('#')
-                });
-        }
-        catch { /* ignore */ }
-        // #endregion
-
-        return final;
+        return RedisConnectionHelper.EnsureAbortConnect(resolved, abortConnect);
     }
 
     public string Version => MergedString("Version") ?? "1.0.0";
