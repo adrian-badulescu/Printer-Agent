@@ -106,12 +106,16 @@ public class AgentWorker : BackgroundService
             catch (RedisConnectionException ex)
             {
                 // #region agent log
-                DebugSessionLog.Write("H1", "AgentWorker.RunRedisConsumerSafelyAsync", "redis_consumer_stopped", new
+                DebugSessionLog.Write("H1+H8", "AgentWorker.RunRedisConsumerSafelyAsync", "redis_consumer_stopped", new
                 {
                     restaurantId,
                     isNoAuth = ex.Message.Contains("NOAUTH", StringComparison.OrdinalIgnoreCase)
                                || ex.Message.Contains("AuthenticationFailure", StringComparison.OrdinalIgnoreCase),
+                    isWrongPass = ex.Message.Contains("WRONGPASS", StringComparison.OrdinalIgnoreCase)
+                                  || (ex.InnerException?.Message?.Contains("WRONGPASS", StringComparison.OrdinalIgnoreCase) ?? false),
                     message = ex.Message,
+                    innerType = ex.InnerException?.GetType().FullName ?? string.Empty,
+                    innerMessage = ex.InnerException?.Message ?? string.Empty,
                     retryDelaySec = retryDelay.TotalSeconds
                 });
                 // #endregion

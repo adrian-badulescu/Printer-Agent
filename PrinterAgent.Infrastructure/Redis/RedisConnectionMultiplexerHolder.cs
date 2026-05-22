@@ -35,10 +35,38 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
                 "Redis: opening connection ({Conn}).",
                 _appConfiguration.RedisConnectionSummary);
 
+            var connectionString = _appConfiguration.RedisConnectionString;
+
+            // #region agent log
+            try
+            {
+                var opts = ConfigurationOptions.Parse(connectionString);
+                var pwd = opts.Password ?? string.Empty;
+                DebugSessionLog.Write("H6", "RedisConnectionMultiplexerHolder.Get", "parsed_options", new
+                {
+                    parsedPasswordLength = pwd.Length,
+                    parsedPasswordStartsWithQuote = pwd.Length > 0 && pwd[0] == '"',
+                    parsedPasswordEndsWithQuote = pwd.Length > 0 && pwd[pwd.Length - 1] == '"',
+                    parsedPasswordContainsHash = pwd.Contains('#'),
+                    parsedPasswordHashCount = pwd.Count(c => c == '#'),
+                    parsedUserPresent = !string.IsNullOrEmpty(opts.User),
+                    parsedUser = opts.User ?? string.Empty,
+                    parsedEndpoint = opts.EndPoints.Count > 0 ? opts.EndPoints[0].ToString() ?? string.Empty : string.Empty
+                });
+            }
+            catch (Exception parseEx)
+            {
+                DebugSessionLog.Write("H6", "RedisConnectionMultiplexerHolder.Get", "parse_options_failed", new
+                {
+                    message = parseEx.Message
+                });
+            }
+            // #endregion
+
             var sw = Stopwatch.StartNew();
             try
             {
-                _multiplexer = ConnectionMultiplexer.Connect(_appConfiguration.RedisConnectionString);
+                _multiplexer = ConnectionMultiplexer.Connect(connectionString);
                 sw.Stop();
                 // #region agent log
                 DebugSessionLog.Write("H1", "RedisConnectionMultiplexerHolder.Get", "redis_connect_ok", new
@@ -61,6 +89,8 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
                     isNoAuth = ex.Message.Contains("NOAUTH", StringComparison.OrdinalIgnoreCase)
                                || ex.Message.Contains("AuthenticationFailure", StringComparison.OrdinalIgnoreCase),
                     message = ex.Message,
+                    innerType = ex.InnerException?.GetType().FullName ?? string.Empty,
+                    innerMessage = ex.InnerException?.Message ?? string.Empty,
                     summary = _appConfiguration.RedisConnectionSummary
                 });
                 // #endregion

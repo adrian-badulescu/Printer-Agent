@@ -225,10 +225,14 @@ public class AppConfiguration : IAppConfiguration
 
         if (!string.IsNullOrEmpty(password))
         {
+            // NOTE: StackExchange.Redis 2.12 does NOT strip surrounding double quotes from values
+            // in the connection string — the literal characters are sent over AUTH and the server
+            // rejects with NOAUTH. The backend uses the same password un-quoted successfully, so
+            // we mirror that (passwords with ',' or '=' are not supported, which is acceptable).
             if (!string.IsNullOrWhiteSpace(user))
-                parts.Add($"user={RedisConnectionHelper.QuoteConnectionValue(user.Trim())}");
+                parts.Add($"user={user.Trim()}");
 
-            parts.Add($"password={RedisConnectionHelper.QuoteConnectionValue(password)}");
+            parts.Add($"password={password}");
         }
 
         parts.Add(ssl ? "ssl=true" : "ssl=false");
