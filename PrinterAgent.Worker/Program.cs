@@ -32,7 +32,10 @@ try
             var bundledAgentJson = Path.Combine(AppContext.BaseDirectory, "agent.json");
             _ = AgentProgramData.Root;
             var programDataAgentJson = Path.Combine(AgentProgramData.Root, "agent.json");
+            var bundledReceiptHeader = Path.Combine(AppContext.BaseDirectory, AgentProgramData.ReceiptHeaderFileName);
+            var programDataReceiptHeader = Path.Combine(AgentProgramData.Root, AgentProgramData.ReceiptHeaderFileName);
             EnsureProgramDataAgentJsonForConfiguration(bundledAgentJson, programDataAgentJson);
+            EnsureProgramDataReceiptHeaderForConfiguration(bundledReceiptHeader, programDataReceiptHeader);
             ValidateProgramDataAgentJsonOrWarn(programDataAgentJson);
             config.AddJsonFile(bundledAgentJson, optional: true, reloadOnChange: false);
             config.AddJsonFile(programDataAgentJson, optional: true, reloadOnChange: true);
@@ -112,6 +115,23 @@ catch (Exception ex)
 /// <summary>
 /// Ensures ProgramData agent.json exists at host build so reloadOnChange watches the path Configurator writes to.
 /// </summary>
+static void EnsureProgramDataReceiptHeaderForConfiguration(string bundledReceiptHeader, string programDataReceiptHeader)
+{
+    try
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(programDataReceiptHeader)!);
+        if (File.Exists(programDataReceiptHeader))
+            return;
+
+        if (File.Exists(bundledReceiptHeader))
+            File.Copy(bundledReceiptHeader, programDataReceiptHeader);
+    }
+    catch
+    {
+        // optional file; EscPosPrinterService falls back to embedded default
+    }
+}
+
 static void EnsureProgramDataAgentJsonForConfiguration(string bundledAgentJson, string programDataAgentJson)
 {
     try

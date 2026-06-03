@@ -129,17 +129,8 @@ public class EscPosPrinterService : IPrinterService
             return new string(s.Select(c => c <= 127 ? c : '?').ToArray());
         }
 
-        static string[] UrsAsciiArt()
-        {
-            return
-            [
-                " _   _   ____    ____ ",
-                "| | | | |  _ \\  / ___|",
-                "| |_| | | |_) | \\___ \\",
-                "|  _  | |  _ <   ___) |",
-                "|_| |_| |_| \\_\\ |____/ ",
-            ];
-        }
+        var bundledHeader = Path.Combine(AppContext.BaseDirectory, ReceiptHeaderAsciiReader.FileName);
+        var headerLines = ReceiptHeaderAsciiReader.ReadLines(bundledPath: bundledHeader);
 
         var restaurantName = SafeAscii(job.Payload.RestaurantName);
         var tableName = SafeAscii(job.Payload.TableName);
@@ -147,7 +138,7 @@ public class EscPosPrinterService : IPrinterService
         var paymentMethod = SafeAscii(job.Payload.PaymentMethod);
 
         bw.Write(new byte[] { 0x1B, 0x61, 0x01 });
-        foreach (var line in UrsAsciiArt())
+        foreach (var line in headerLines)
             bw.Write(Encoding.ASCII.GetBytes(line + "\n"));
         bw.Write(Encoding.ASCII.GetBytes("\n"));
         bw.Write(Encoding.ASCII.GetBytes("NOTA DE PLATA (NEFISCALA)\n"));

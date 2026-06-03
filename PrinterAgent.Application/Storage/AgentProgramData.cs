@@ -8,6 +8,8 @@ public static class AgentProgramData
 {
     public const string FolderName = "URSPrinterAgent";
 
+    public const string ReceiptHeaderFileName = "receipt-header.ascii";
+
     private static readonly string RootInitialized = InitializeRoot();
 
     public static string Root => RootInitialized;
