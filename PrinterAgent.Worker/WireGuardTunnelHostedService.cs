@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -83,10 +84,24 @@ public sealed class WireGuardTunnelHostedService : IHostedService
                     serviceName,
                     timeout,
                     sc.Status);
+                // #region agent log
+                DebugSessionLog.Write(
+                    "WireGuardTunnelHostedService.cs:StartAsync",
+                    "tunnel not running",
+                    new { serviceName, status = sc.Status.ToString() },
+                    hypothesisId: "B");
+                // #endregion
             }
             else
             {
                 _logger.LogInformation("WireGuard: service {Service} is Running.", serviceName);
+                // #region agent log
+                DebugSessionLog.Write(
+                    "WireGuardTunnelHostedService.cs:StartAsync",
+                    "tunnel running",
+                    new { serviceName },
+                    hypothesisId: "B");
+                // #endregion
             }
         }
         catch (InvalidOperationException ex)
@@ -101,10 +116,25 @@ public sealed class WireGuardTunnelHostedService : IHostedService
                 return InstallThenStartAsync(serviceName, opt.ConfigFilePath, cancellationToken);
             }
 
+            var confExists = !string.IsNullOrWhiteSpace(opt.ConfigFilePath) && File.Exists(opt.ConfigFilePath);
             _logger.LogError(
                 ex,
-                "WireGuard: service {Service} not found or could not be started (admin rights / wrong name?).",
-                serviceName);
+                "WireGuard: service {Service} not found or could not be started (admin rights / wrong name?). ConfExists={ConfExists}.",
+                serviceName,
+                confExists);
+            // #region agent log
+            DebugSessionLog.Write(
+                "WireGuardTunnelHostedService.cs:StartAsync",
+                "tunnel service missing",
+                new
+                {
+                    serviceName,
+                    confExists,
+                    confPath = opt.ConfigFilePath,
+                    installIfMissing = opt.InstallTunnelServiceIfMissing,
+                },
+                hypothesisId: "C");
+            // #endregion
         }
         catch (Exception ex)
         {

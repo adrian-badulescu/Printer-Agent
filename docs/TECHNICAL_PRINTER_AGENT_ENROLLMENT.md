@@ -66,6 +66,7 @@ The directory is created on startup if missing. Code: `PrinterAgent.Application.
 ## Operations
 
 - Backend production steps: see the backend repository `docs/PRODUCTION_BACKEND_CHECKLIST.md` (EF migrate, Redis, pepper, regen codes).
+- **WireGuard server + SSH keys (Ubuntu):** [wireguard-ssh-provisioning/README.md](wireguard-ssh-provisioning/README.md), dev quick start [WIREGUARD-SSH-DEV.md](WIREGUARD-SSH-DEV.md).
 - Agent E2E: [E2E_AGENT_DEPLOYMENT_CHECKLIST.md](E2E_AGENT_DEPLOYMENT_CHECKLIST.md).
 - Scripts (run from `Printer-Agent/scripts`): `Setup-ProgramData.ps1` (ACL + optional template copy), `Install-UrsPrinterAgent.ps1` (Windows service).
 

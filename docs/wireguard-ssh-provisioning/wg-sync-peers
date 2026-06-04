@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Apply persisted peers from wg0.generated.conf to the running interface.
+# Install to /usr/local/bin/wg-sync-peers and call from wg0.base.conf PostUp on boot.
+
+WG_IF="${1:-wg0}"
+GEN_CONF="/etc/wireguard/${WG_IF}.generated.conf"
+
+if [[ ! -f "$GEN_CONF" ]]; then
+  exit 0
+fi
+
+wg syncconf "$WG_IF" <(wg-quick strip "$GEN_CONF")

@@ -3,14 +3,21 @@ using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Domain;
+using PrinterAgent.Infrastructure.Observability;
 using StackExchange.Redis;
 
 namespace PrinterAgent.Infrastructure.Redis;
 
 public class RedisStreamConsumer : IRedisStreamConsumer
 {
+    private static readonly JsonSerializerOptions JobJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     private readonly IRedisConnectionMultiplexerHolder _redisHolder;
     private readonly IPrintJobProcessor _printJobProcessor;
+    private readonly IBackendClient _backendClient;
     private readonly ILogger<RedisStreamConsumer> _logger;
     private readonly IAgentSessionStore _sessionStore;
     private readonly IAppConfiguration _appConfiguration;
@@ -18,12 +25,14 @@ public class RedisStreamConsumer : IRedisStreamConsumer
     public RedisStreamConsumer(
         IRedisConnectionMultiplexerHolder redisHolder,
         IPrintJobProcessor printJobProcessor,
+        IBackendClient backendClient,
         ILogger<RedisStreamConsumer> logger,
         IAgentSessionStore sessionStore,
         IAppConfiguration appConfiguration)
     {
         _redisHolder = redisHolder;
         _printJobProcessor = printJobProcessor;
+        _backendClient = backendClient;
         _logger = logger;
         _sessionStore = sessionStore;
         _appConfiguration = appConfiguration;
@@ -60,6 +69,14 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         {
             // Group already exists, which is fine
         }
+
+        // #region agent log
+        DebugSessionLog.Write(
+            "RedisStreamConsumer.cs:StartConsumingAsync",
+            "redis consumer starting",
+            new { streamName, groupName, consumerName, restaurantId },
+            hypothesisId: "B");
+        // #endregion
 
         await DrainPendingMessagesAsync(db, streamName, groupName, consumerName, cancellationToken).ConfigureAwait(false);
 
@@ -103,8 +120,10 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         string consumerName,
         CancellationToken cancellationToken)
     {
+        var drainRound = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
+            drainRound++;
             var pending = await db.StreamReadGroupAsync(
                 streamName,
                 groupName,
@@ -114,6 +133,23 @@ public class RedisStreamConsumer : IRedisStreamConsumer
 
             if (pending.Length == 0)
                 break;
+
+            // #region agent log
+            DebugSessionLog.Write(
+                "RedisStreamConsumer.cs:DrainPendingMessagesAsync",
+                "draining pending PEL messages",
+                new { streamName, consumerName, drainRound, pendingCount = pending.Length },
+                hypothesisId: "G");
+            // #endregion
+
+            if (drainRound > 50)
+            {
+                _logger.LogError(
+                    "Pending drain exceeded 50 rounds on stream {Stream} for consumer {Consumer}; stopping drain to avoid blocking new jobs.",
+                    streamName,
+                    consumerName);
+                break;
+            }
 
             foreach (var message in pending)
             {
@@ -129,19 +165,95 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         StreamEntry message,
         CancellationToken cancellationToken)
     {
-        var payloadJson = message.Values.FirstOrDefault(v => v.Name == "payload").Value.ToString();
-        if (string.IsNullOrEmpty(payloadJson))
-            return;
+        var messageId = message.Id.ToString();
+        try
+        {
+            var payloadJson = message.Values.FirstOrDefault(v => v.Name == "payload").Value.ToString();
+            if (string.IsNullOrEmpty(payloadJson))
+            {
+                _logger.LogWarning("Stream message {MessageId} has empty payload; acknowledging to unblock consumer.", messageId);
+                // #region agent log
+                DebugSessionLog.Write(
+                    "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
+                    "empty payload ack",
+                    new { messageId, streamName },
+                    hypothesisId: "D");
+                // #endregion
+                await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
+                return;
+            }
 
-        var job = JsonSerializer.Deserialize<PrintJob>(payloadJson);
-        if (job == null)
-            return;
+            PrintJob? job;
+            try
+            {
+                job = JsonSerializer.Deserialize<PrintJob>(payloadJson, JobJsonOptions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize print job {MessageId}.", messageId);
+                // #region agent log
+                DebugSessionLog.Write(
+                    "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
+                    "deserialize exception",
+                    new { messageId, payloadLength = payloadJson.Length, ex = ex.Message },
+                    hypothesisId: "D");
+                // #endregion
+                job = null;
+            }
 
-        job.RedisMessageId = message.Id.ToString();
-        _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
+            if (job == null)
+            {
+                _logger.LogWarning("Stream message {MessageId} could not be parsed as PrintJob; marking Failed and acknowledging.", messageId);
+                await TryMarkJobFailedAsync(messageId, cancellationToken).ConfigureAwait(false);
+                await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
+                return;
+            }
 
-        await _printJobProcessor.ProcessJobAsync(job, cancellationToken).ConfigureAwait(false);
-        await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
-        _logger.LogInformation("Job {JobId} acknowledged.", job.RedisMessageId);
+            job.RedisMessageId = messageId;
+            _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
+
+            // #region agent log
+            DebugSessionLog.Write(
+                "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
+                "processing job",
+                new { messageId, job.PrinterId, job.RestaurantId, payloadType = job.Payload?.Type },
+                hypothesisId: "B");
+            // #endregion
+
+            await _printJobProcessor.ProcessJobAsync(job, cancellationToken).ConfigureAwait(false);
+            await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
+            _logger.LogInformation("Job {JobId} acknowledged.", job.RedisMessageId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled error processing stream message {MessageId}; acknowledging to avoid PEL stall.", messageId);
+            // #region agent log
+            DebugSessionLog.Write(
+                "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
+                "handler exception ack",
+                new { messageId, ex = ex.Message },
+                hypothesisId: "G");
+            // #endregion
+            try
+            {
+                await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
+            }
+            catch (Exception ackEx)
+            {
+                _logger.LogError(ackEx, "Failed to acknowledge message {MessageId} after error.", messageId);
+            }
+        }
+    }
+
+    private async Task TryMarkJobFailedAsync(string jobId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _backendClient.UpdateJobStatusAsync(jobId, PrintJobStatus.Failed, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not mark job {JobId} as Failed after parse error.", jobId);
+        }
     }
 }

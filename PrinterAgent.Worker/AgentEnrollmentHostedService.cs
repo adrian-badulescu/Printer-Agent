@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -87,42 +88,56 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
-                    await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
-                    return;
+                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
+                        return;
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                    continue;
                 }
 
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
-                    await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
-                    return;
+                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
+                        return;
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                    continue;
                 }
 
                 var code = _appConfiguration.EnrollmentCode;
                 if (string.IsNullOrWhiteSpace(code))
                 {
-                    if (!warnedMissingCode)
+                    if (CanContinueWithRefreshOnly())
                     {
-                        warnedMissingCode = true;
-                        if (CanContinueWithRefreshOnly())
+                        if (!warnedMissingCode)
                         {
+                            warnedMissingCode = true;
                             _logger.LogWarning(
-                                "EnrollmentCode is missing in agent.json, but AgentId and refresh token exist in session — continuing startup; heartbeat will retry refresh.");
-                            return;
+                                "EnrollmentCode is missing in agent.json, but AgentId and refresh token exist in session — continuing startup; heartbeat will retry refresh and WireGuard provisioning.");
                         }
 
+                        if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
+                            return;
+                    }
+                    else if (!warnedMissingCode)
+                    {
+                        warnedMissingCode = true;
                         _logger.LogWarning(
                             "EnrollmentCode is missing in agent.json — waiting for it to be saved (Configurator) to enroll. No service restart is required.");
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
                 warnedMissingCode = false;
                 var ok = await TryEnrollOnceAsync(code, cancellationToken).ConfigureAwait(false);
                 if (ok)
-                    return;
+                {
+                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
+                        return;
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
                 // Enrollment failed but did not throw; wait and retry (covers transient errors and 401 when code was wrong).
                 // 429 backoff is handled inside TryEnrollOnceAsync via a local delay.
@@ -243,6 +258,70 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         if (value > TimeSpan.FromMinutes(5))
             return TimeSpan.FromMinutes(5);
         return value;
+    }
+
+    /// <summary>
+    /// Returns true when enrollment loop can exit (WireGuard disabled or conf + tunnel service are ready).
+    /// </summary>
+    private async Task<bool> TryFinishWireGuardSetupAsync(CancellationToken cancellationToken)
+    {
+        _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken)
+            .ConfigureAwait(false);
+        await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
+
+        if (IsWireGuardInfrastructureReady())
+            return true;
+
+        var opt = _wireGuardOptions.Value;
+        var path = opt.ConfigFilePath?.Trim() ?? string.Empty;
+        _logger.LogWarning(
+            "WireGuard is not ready (conf or tunnel service missing). Path={Path}. Will retry in 30s. Bill print jobs need Redis at {RedisHost}.",
+            path,
+            _appConfiguration.RedisConnectionSummary);
+
+        // #region agent log
+        DebugSessionLog.Write(
+            "AgentEnrollmentHostedService.cs:TryFinishWireGuardSetupAsync",
+            "wireguard not ready",
+            new { path, confExists = File.Exists(path) },
+            hypothesisId: "B");
+        // #endregion
+
+        return false;
+    }
+
+    private bool IsWireGuardInfrastructureReady()
+    {
+        var opt = _wireGuardOptions.Value;
+        if (!opt.Enabled)
+            return true;
+
+        var path = opt.ConfigFilePath?.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+            return true;
+
+        if (!File.Exists(path))
+            return false;
+
+        var serviceName = ResolveTunnelServiceName(opt, path);
+        if (string.IsNullOrWhiteSpace(serviceName))
+            return true;
+
+        if (!opt.InstallTunnelServiceIfMissing)
+            return true;
+
+        if (!_wireGuardTunnelManager.ServiceExists(serviceName))
+            return false;
+
+        try
+        {
+            using var sc = new ServiceController(serviceName);
+            return sc.Status == ServiceControllerStatus.Running;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task TryProvisionWireGuardIfNeededAsync(CancellationToken cancellationToken)

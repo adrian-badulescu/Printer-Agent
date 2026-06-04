@@ -42,6 +42,17 @@ La succes, răspunsul conține o nouă pereche **access + refresh** (rotație la
 
 Detalii suplimentare: [docs/TECHNICAL_PRINTER_AGENT_ENROLLMENT.md](docs/TECHNICAL_PRINTER_AGENT_ENROLLMENT.md), [docs/TOKEN_EXPIRY_AND_REENROLL.md](docs/TOKEN_EXPIRY_AND_REENROLL.md).
 
+## WireGuard + Redis (server setup)
+
+Print jobs use Redis over VPN (`10.8.0.1` typical). Server-side provisioning (scripts, `wgctl`, SSH keys, dev API env):
+
+| Document | Content |
+|----------|---------|
+| [docs/wireguard-ssh-provisioning/README.md](docs/wireguard-ssh-provisioning/README.md) | Ubuntu `wg0`, `wg-peer-upsert`, SSH keys, Redis bind, onboarding flow |
+| [docs/WIREGUARD-SSH-DEV.md](docs/WIREGUARD-SSH-DEV.md) | Dev host: `/etc/urs/`, `qrapi-dev-1/2` systemd |
+
+Windows agent E2E after server is ready: [docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md](docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md).
+
 ## Configurare backend (durate token)
 
 În API, secțiunea **`PrinterAgent`** din `appsettings`:

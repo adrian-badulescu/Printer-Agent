@@ -9,7 +9,7 @@ Verificare manuală după ce backend-ul are migrările aplicate și ai un cod de
 | PostgreSQL + migrări | Include tabelele printer-agent (`PrinterAgentEnrollmentCodes`, `PrinterAgentRegistrations`, …) și coloanele **refresh** (`RefreshTokenHash`, `RefreshTokenExpiresUtc`) dacă folosiți `api/agents/refresh`. |
 | API rulează | `BackendUrl` din `agent.json` trebuie să răspundă (ex. `http://host:7051`). |
 | `PrinterAgent` în appsettings | `EnrollmentCodePepper` (sau fallback `UpdateSignatureSecret`) aliniat cu secretul folosit la generarea codurilor. `UpdateSignatureSecret` același ca în `agent.json` pentru update semnat. |
-| Redis | **Același server Redis** ca la API, pentru stream-uri `print.jobs.*`. Agentul **nu** folosește Redis pentru enroll; rate limit la enroll e în API (per IP). |
+| Redis | **Același server Redis** ca la API, pentru stream-uri `print.jobs.*`. Agentul **nu** folosește Redis pentru enroll; rate limit la enroll e în API (per IP). Agentul ajunge la Redis **prin tunel WireGuard** (ex. `10.8.0.1:6379`) — vezi [wireguard-ssh-provisioning/README.md](wireguard-ssh-provisioning/README.md) și [WIREGUARD-SSH-DEV.md](WIREGUARD-SSH-DEV.md). |
 | Drepturi pe disc | Director `%ProgramData%\URSPrinterAgent\` există; serviciul Windows trebuie să poată citi/scrie acolo (vezi `scripts/Setup-ProgramData.ps1`). |
 
 **Cont serviciu:** `Install-UrsPrinterAgent.ps1` creează serviciul cu contul implicit (**Local System**), care are de obicei acces la `ProgramData`. Dacă schimbi contul serviciului, acordă-i **Modify** pe `%ProgramData%\URSPrinterAgent` (și rulează `Setup-ProgramData.ps1` adaptat pentru acel cont).

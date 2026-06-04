@@ -74,8 +74,41 @@ if (Test-Path $sessionJson) {
     }
 }
 
-Write-Host "`n=== worker.log (printer / enroll / print failures) ===" -ForegroundColor Cyan
+Write-Host "`n=== wireguard-conf API test (no server config changes) ===" -ForegroundColor Cyan
+$testScript = Join-Path $PSScriptRoot 'Test-AgentWireGuardConf.ps1'
+if (Test-Path $testScript) {
+    Write-Host "Run: & '$testScript'  (Admin) — shows exact HTTP status from backend."
+} else {
+    Write-Host 'Test-AgentWireGuardConf.ps1 not found next to this script.'
+}
+
+Write-Host "`n=== WireGuard tunnel (Redis is usually on VPN, e.g. 10.8.0.1) ===" -ForegroundColor Cyan
+$wgConf = Join-Path $dataDir 'wireguard\urs-printer-agent.conf'
+Write-Host "conf file:      $(if (Test-Path $wgConf) { 'OK ' + $wgConf } else { 'MISSING — re-enroll or restart URSPrinterAgent after enrollment' })"
+$wgService = 'WireGuardTunnel$urs-printer-agent'
+$wgSvc = Get-Service -Name $wgService -ErrorAction SilentlyContinue
+if ($wgSvc) {
+    Write-Host "tunnel service: $wgService -> $($wgSvc.Status)"
+    if ($wgSvc.Status -ne 'Running') {
+        Write-Warning 'Tunnel is NOT Running — bill print jobs stay Received in DB. Start tunnel in WireGuard app (Activate) or: Start-Service -Name WireGuardTunnel$urs-printer-agent'
+    }
+} else {
+    Write-Warning "Service $wgService not found. Open WireGuard app and import/activate tunnel, or reinstall agent bundle with WireGuard."
+}
+if ($programDataCfg -and $programDataCfg.Redis) {
+    Write-Host "Redis target:   $($programDataCfg.Redis.Host):$($programDataCfg.Redis.Port) (needs VPN when Host is 10.x)"
+}
+
+Write-Host "`n=== worker.log — WireGuard provisioning (last matches) ===" -ForegroundColor Cyan
 $workerLog = Join-Path $dataDir 'logs\worker.log'
+if (Test-Path $workerLog) {
+    Get-Content $workerLog -Tail 400 |
+        Select-String -Pattern 'WireGuard|wireguard-conf|10\.8\.0\.1|RedisConnection' |
+        Select-Object -Last 15 |
+        ForEach-Object { Write-Host $_.Line }
+}
+
+Write-Host "`n=== worker.log (printer / enroll / print failures) ===" -ForegroundColor Cyan
 if (Test-Path $workerLog) {
     $tail = Get-Content $workerLog -Tail 80
     $tail | Select-String -Pattern 'Enrollment|Heartbeat|Print job|printerId|BackendUrl|Printers loaded|no printer with Id|401|429|WireGuard' |

@@ -17,7 +17,8 @@
     "Enabled": true,
     "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
     "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
-    "WaitForTunnelServiceSeconds": 15,
+    "InstallTunnelServiceIfMissing": true,
+    "WaitForTunnelServiceSeconds": 120,
     "StartServiceIfStopped": true
   },
   "Redis": {

@@ -2,8 +2,8 @@
 # Edit this file under %ProgramData%\URSPrinterAgent\receipt-header.ascii
 # Changes apply on the next print job (no service restart required).
 # Keep each line at most 32 characters (typical thermal receipt width).
- _     ___    ____
-| |   / _ \  / ___|
-| |  | | | | \___ \
-| |  | |_| |  ___) |
-|_|   \___/  |____/
+   __  __  ____   _____      
+  / / / / / __ \ / ___/      
+ / / / / / /_/ / \__ \       
+/ /_/ / / _, _/ ___/ /       
+\____(_)_/ |_(_)____(_)

@@ -132,30 +132,26 @@ public class EscPosPrinterService : IPrinterService
         var bundledHeader = Path.Combine(AppContext.BaseDirectory, ReceiptHeaderAsciiReader.FileName);
         var headerLines = ReceiptHeaderAsciiReader.ReadLines(bundledPath: bundledHeader);
 
-        var restaurantName = SafeAscii(job.Payload.RestaurantName);
+        var restaurantName = SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
         var tableName = SafeAscii(job.Payload.TableName);
         var currency = SafeAscii(job.Payload.Currency);
-        var paymentMethod = SafeAscii(job.Payload.PaymentMethod);
 
         bw.Write(new byte[] { 0x1B, 0x61, 0x01 });
         foreach (var line in headerLines)
             bw.Write(Encoding.ASCII.GetBytes(line + "\n"));
         bw.Write(Encoding.ASCII.GetBytes("\n"));
-        bw.Write(Encoding.ASCII.GetBytes("NOTA DE PLATA (NEFISCALA)\n"));
+        bw.Write(Encoding.ASCII.GetBytes("Non Fiscal\n"));
         if (!string.IsNullOrWhiteSpace(restaurantName))
             bw.Write(Encoding.ASCII.GetBytes($"{restaurantName}\n"));
         bw.Write(Encoding.ASCII.GetBytes("\n"));
         bw.Write(new byte[] { 0x1B, 0x61, 0x00 });
 
-        bw.Write(Encoding.ASCII.GetBytes($"Comanda: {SafeAscii(job.Payload.OrderId)}\n"));
+        bw.Write(Encoding.ASCII.GetBytes($"Order: {SafeAscii(job.Payload.OrderId)}\n"));
         if (!string.IsNullOrWhiteSpace(tableName))
-            bw.Write(Encoding.ASCII.GetBytes($"Masa: {tableName}\n"));
+            bw.Write(Encoding.ASCII.GetBytes($"TABLE: {tableName}\n"));
 
         if (job.Payload.ClosedAtUtc is { } closedAt)
-            bw.Write(Encoding.ASCII.GetBytes($"Data: {closedAt:yyyy-MM-dd HH:mm} UTC\n"));
-
-        if (!string.IsNullOrWhiteSpace(paymentMethod))
-            bw.Write(Encoding.ASCII.GetBytes($"Plata: {paymentMethod}\n"));
+            bw.Write(Encoding.ASCII.GetBytes($"DATE: {closedAt:yyyy-MM-dd HH:mm} UTC\n"));
 
         bw.Write(Encoding.ASCII.GetBytes("--------------------------------\n"));
 
