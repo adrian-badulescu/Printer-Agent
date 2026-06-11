@@ -23,13 +23,22 @@ Use before tagging a production release (`v*`).
 | `REDIS_USER` | Optional ACL user |
 | `BACKEND_URL` | `https://universalrestaurant.systems` (optional; bundled `agent.json` already has prod URL) |
 
-## Release
+## Release (v1.2.7)
 
-1. Align versions in `Package.wxs`, `Bundle.wxs`, `agent.json` `Version`.
-2. Push `main` → verify CI artifact `URSPrinterAgentSetup.exe`.
-3. `git tag vX.Y.Z && git push origin vX.Y.Z` → GitHub Release asset.
-4. Update `PrinterAgent:LatestVersion` on backend if using signed auto-update.
+- Tag: `v1.2.7` on `main`
+- Download: `https://github.com/adrian-badulescu/Printer-Agent/releases/download/v1.2.7/URSPrinterAgentSetup.exe`
+- Backend `PrinterAgent:LatestVersion` = `1.2.7` (deploy `production` branch to apply)
+
+CI on self-hosted runner requires `REDIS_PASSWORD` (and recommended `REDIS_HOST`=`10.60.0.2`). Set under GitHub → Settings → Secrets and variables → Actions, then re-run workflow or push a noop commit if the release build failed.
 
 ## Pilot E2E
 
 See [E2E_AGENT_DEPLOYMENT_CHECKLIST.md](E2E_AGENT_DEPLOYMENT_CHECKLIST.md).
+
+Automated smoke on dev machine (2026-06-11):
+
+- `scripts/Validate-ProductionConnectivity.ps1` — prod `ping-lite` + enroll endpoint OK
+- `scripts/Verify-UrsPrinterAgentInstall.ps1 -ExpectServiceRunning` — install layout OK
+- `scripts/Show-AgentSessionSummary.ps1` — session present (re-enroll required after MSI upgrade to prod `BackendUrl`)
+
+Full pilot: install `URSPrinterAgentSetup.exe` v1.2.7, new enrollment code from prod manager UI, Configurator, print test.
