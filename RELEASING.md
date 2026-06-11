@@ -70,6 +70,14 @@ Vezi `docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md` și `docs/PRODUCTION_AGENT_CHECKLI
 ## Build local (opțional)
 
 ```powershell
+# Cu parolă Redis (ca la CI):
+$env:REDIS_PASSWORD = '...'
+$env:REDIS_HOST = '10.60.0.2'
+.\scripts\Build-ProductionInstaller.ps1
+
+# Fără inject (doar dev; Redis.Password gol în MSI):
 dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true
 # → PrinterAgent.Bundle\bin\Release\URSPrinterAgentSetup.exe
 ```
+
+**CI:** workflow-ul rulează pe runner **self-hosted** Windows. Dacă build-urile rămân `queued`, pornește runner-ul sau rulează `Build-ProductionInstaller.ps1` și încarcă manual asset-ul la release (`gh release upload v1.2.7 URSPrinterAgentSetup.exe`).

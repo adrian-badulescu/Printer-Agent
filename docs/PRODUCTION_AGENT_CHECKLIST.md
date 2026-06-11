@@ -35,10 +35,12 @@ CI on self-hosted runner requires `REDIS_PASSWORD` (and recommended `REDIS_HOST`
 
 See [E2E_AGENT_DEPLOYMENT_CHECKLIST.md](E2E_AGENT_DEPLOYMENT_CHECKLIST.md).
 
-Automated smoke on dev machine (2026-06-11):
+Automated smoke on pilot machine (2026-06-11):
 
 - `scripts/Validate-ProductionConnectivity.ps1` — prod `ping-lite` + enroll endpoint OK
 - `scripts/Verify-UrsPrinterAgentInstall.ps1 -ExpectServiceRunning` — install layout OK
-- `scripts/Show-AgentSessionSummary.ps1` — session present (re-enroll required after MSI upgrade to prod `BackendUrl`)
+- Local `URSPrinterAgentSetup.exe` v1.2.7 upgrade (`/quiet`) — install-dir `BackendUrl` + `Redis.Host` now prod
+- Agent reaches `https://universalrestaurant.systems` (enroll returns 401 until valid prod enrollment code in ProgramData)
+- Redis consumer needs `REDIS_PASSWORD` baked into MSI (CI secret); local build without inject shows `NOAUTH` on `10.60.0.2`
 
-Full pilot: install `URSPrinterAgentSetup.exe` v1.2.7, new enrollment code from prod manager UI, Configurator, print test.
+**Remaining for full pilot:** prod enrollment code in Configurator, CI release asset (self-hosted runner must be online), print test from manager UI.
