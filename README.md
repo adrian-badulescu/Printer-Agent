@@ -44,12 +44,22 @@ Detalii suplimentare: [docs/TECHNICAL_PRINTER_AGENT_ENROLLMENT.md](docs/TECHNICA
 
 ## WireGuard + Redis (server setup)
 
-Print jobs use Redis over VPN (`10.8.0.1` typical). Server-side provisioning (scripts, `wgctl`, SSH keys, dev API env):
+Print jobs use Redis **over WireGuard only** — not direct from the public internet.
+
+| Environment | Redis VPN IP | `AllowedIps` in agent `.conf` | Notes |
+|-------------|--------------|-------------------------------|--------|
+| **Dev** (single host) | `10.8.0.1:6379` | `10.8.0.1/32` | Redis co-located with WG hub |
+| **Production** (3 VPS) | **`10.60.0.2:6379`** | **`10.60.0.2/32`** | Redis on dedicated VPS; enroll still HTTPS to App VPS |
+
+After enroll: agent connects to `Redis:Host` **through the WG tunnel** (`AllowedIPs` routes only Redis traffic).
+
+Server-side provisioning (scripts, `wgctl`, SSH keys):
 
 | Document | Content |
 |----------|---------|
 | [docs/wireguard-ssh-provisioning/README.md](docs/wireguard-ssh-provisioning/README.md) | Ubuntu `wg0`, `wg-peer-upsert`, SSH keys, Redis bind, onboarding flow |
 | [docs/WIREGUARD-SSH-DEV.md](docs/WIREGUARD-SSH-DEV.md) | Dev host: `/etc/urs/`, `qrapi-dev-1/2` systemd |
+| Backend `deploy/production/ubuntu/REDIS_VPS_PRODUCTION.md` | Prod: Redis `bind 10.60.0.2`, print jobs, agent via VPN |
 
 Windows agent E2E after server is ready: [docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md](docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md).
 

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Domain;
-using PrinterAgent.Infrastructure.Observability;
 using StackExchange.Redis;
 
 namespace PrinterAgent.Infrastructure.Redis;
@@ -70,14 +69,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             // Group already exists, which is fine
         }
 
-        // #region agent log
-        DebugSessionLog.Write(
-            "RedisStreamConsumer.cs:StartConsumingAsync",
-            "redis consumer starting",
-            new { streamName, groupName, consumerName, restaurantId },
-            hypothesisId: "B");
-        // #endregion
-
         await DrainPendingMessagesAsync(db, streamName, groupName, consumerName, cancellationToken).ConfigureAwait(false);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -134,14 +125,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             if (pending.Length == 0)
                 break;
 
-            // #region agent log
-            DebugSessionLog.Write(
-                "RedisStreamConsumer.cs:DrainPendingMessagesAsync",
-                "draining pending PEL messages",
-                new { streamName, consumerName, drainRound, pendingCount = pending.Length },
-                hypothesisId: "G");
-            // #endregion
-
             if (drainRound > 50)
             {
                 _logger.LogError(
@@ -172,13 +155,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             if (string.IsNullOrEmpty(payloadJson))
             {
                 _logger.LogWarning("Stream message {MessageId} has empty payload; acknowledging to unblock consumer.", messageId);
-                // #region agent log
-                DebugSessionLog.Write(
-                    "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
-                    "empty payload ack",
-                    new { messageId, streamName },
-                    hypothesisId: "D");
-                // #endregion
                 await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
                 return;
             }
@@ -191,13 +167,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to deserialize print job {MessageId}.", messageId);
-                // #region agent log
-                DebugSessionLog.Write(
-                    "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
-                    "deserialize exception",
-                    new { messageId, payloadLength = payloadJson.Length, ex = ex.Message },
-                    hypothesisId: "D");
-                // #endregion
                 job = null;
             }
 
@@ -212,14 +181,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             job.RedisMessageId = messageId;
             _logger.LogInformation("Received job {JobId} from Redis.", job.RedisMessageId);
 
-            // #region agent log
-            DebugSessionLog.Write(
-                "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
-                "processing job",
-                new { messageId, job.PrinterId, job.RestaurantId, payloadType = job.Payload?.Type },
-                hypothesisId: "B");
-            // #endregion
-
             await _printJobProcessor.ProcessJobAsync(job, cancellationToken).ConfigureAwait(false);
             await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);
             _logger.LogInformation("Job {JobId} acknowledged.", job.RedisMessageId);
@@ -227,13 +188,6 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error processing stream message {MessageId}; acknowledging to avoid PEL stall.", messageId);
-            // #region agent log
-            DebugSessionLog.Write(
-                "RedisStreamConsumer.cs:ProcessStreamMessageAsync",
-                "handler exception ack",
-                new { messageId, ex = ex.Message },
-                hypothesisId: "G");
-            // #endregion
             try
             {
                 await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);

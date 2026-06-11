@@ -1,10 +1,10 @@
 {
   "RestaurantId": "",
   "EnrollmentCode": "",
-  "BackendUrl": "https://your-backend.example",
+  "BackendUrl": "https://universalrestaurant.systems",
   "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
-  "Version": "1.0.0",
+  "Version": "1.2.7",
   "MaxPrintRetryAttempts": 5,
   "PrintRetryBaseDelayMs": 1000,
   "PrinterConnectTimeoutSeconds": 15,
@@ -21,7 +21,7 @@
     "StartServiceIfStopped": true
   },
   "Redis": {
-    "Host": "10.8.0.1",
+    "Host": "10.60.0.2",
     "Port": "6379",
     "Password": "",
     "Ssl": false,

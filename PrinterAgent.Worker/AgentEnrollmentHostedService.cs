@@ -9,7 +9,6 @@ using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Infrastructure.Networking;
-using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -278,14 +277,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             "WireGuard is not ready (conf or tunnel service missing). Path={Path}. Will retry in 30s. Bill print jobs need Redis at {RedisHost}.",
             path,
             _appConfiguration.RedisConnectionSummary);
-
-        // #region agent log
-        DebugSessionLog.Write(
-            "AgentEnrollmentHostedService.cs:TryFinishWireGuardSetupAsync",
-            "wireguard not ready",
-            new { path, confExists = File.Exists(path) },
-            hypothesisId: "B");
-        // #endregion
 
         return false;
     }

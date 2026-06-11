@@ -2,7 +2,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
-  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.2.6.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
+  <Package Name="URS Printer Agent" Manufacturer="U.R.S." Version="1.2.7.0" UpgradeCode="780b6db8-23eb-460d-9fa6-2f1d9a2d8a43" Scope="perMachine" Codepage="65001">
     <MajorUpgrade DowngradeErrorMessage="A newer version of URS Printer Agent is already installed." />
 
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />

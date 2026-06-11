@@ -2,8 +2,6 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Domain;
-using PrinterAgent.Infrastructure.Observability;
-
 namespace PrinterAgent.Infrastructure.Http;
 
 public class BackendClient : IBackendClient
@@ -49,32 +47,9 @@ public class BackendClient : IBackendClient
                 url,
                 code,
                 string.IsNullOrWhiteSpace(body) ? "<empty>" : body.Trim());
-            // #region agent log
-            DebugSessionLog.Write(
-                "BackendClient.cs:GetWireGuardConfAsync",
-                "wireguard-conf HTTP error",
-                new { agentId, httpStatus = code, bodyPreview = Truncate(body, 200) },
-                hypothesisId: "A");
-            // #endregion
             return null;
         }
-        var conf = await response.Content.ReadAsStringAsync(cancellationToken);
-        // #region agent log
-        DebugSessionLog.Write(
-            "BackendClient.cs:GetWireGuardConfAsync",
-            "wireguard-conf OK",
-            new { agentId, confBytes = conf.Length },
-            hypothesisId: "A");
-        // #endregion
-        return conf;
-    }
-
-    private static string Truncate(string? value, int maxLen)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return "<empty>";
-        var t = value.Trim();
-        return t.Length <= maxLen ? t : t[..maxLen];
+        return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
     public async Task<Stream> DownloadAsync(Uri url, CancellationToken cancellationToken = default)

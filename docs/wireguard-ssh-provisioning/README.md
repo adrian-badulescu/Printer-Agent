@@ -402,7 +402,9 @@ Notes:
 
 - `agentId` is the same GUID as `clientInstanceId` (string `"D"` format).
 - Keep `POST /api/agents/enroll` and `POST /api/agents/refresh` reachable even before VPN is up (bootstrap).
-- If you want **only Redis** through VPN, set `PrinterAgent:WireGuard:AllowedIps` to the Redis host IP you expect the agent to use on `wg0` (often the WireGuard server IP, e.g. `10.8.0.1/32`).
+- If you want **only Redis** through VPN, set `PrinterAgent:WireGuard:AllowedIps` to the Redis host IP on `wg0`:
+  - **Dev** (Redis on hub): `10.8.0.1/32`
+  - **Production** (Redis on separate VPS): **`10.60.0.2/32`** — agents reach `10.60.0.2:6379` **via tunnel only**, not from the public internet
 
 ## 5.2) Windows agent: bundling + tunnel persistence (WireGuard for Windows)
 

@@ -4,7 +4,7 @@
 
 - Runner **self-hosted** Windows (`self-hosted`, `Windows`).
 - **.NET 10 SDK instalat o dată pe mașina runner** (Administrator), pe PATH — workflow-ul **nu** rulează `setup-dotnet` (contul serviciului GitHub Actions nu poate scrie în `C:\Program Files\dotnet`).
-- Secret **Actions** în repo: `REDIS_PASSWORD` (obligatoriu pentru build CI). Opțional: `REDIS_HOST`, `REDIS_USER`.
+- Secret **Actions** în repo: `REDIS_PASSWORD` (obligatoriu pentru build CI). Recomandat producție: `REDIS_HOST`=`10.60.0.2`, `BACKEND_URL`=`https://universalrestaurant.systems`. Opțional: `REDIS_USER`.
 
 ## Secrete Redis (nu în Git)
 
@@ -19,7 +19,8 @@ GitHub → **Settings** → **Secrets and variables** → **Actions** → **New 
 | Secret | Obligatoriu | Descriere |
 |--------|-------------|-----------|
 | `REDIS_PASSWORD` | Da | Parola Redis (ACL / requirepass) |
-| `REDIS_HOST` | Nu | Dacă lipsește, rămâne valoarea din `agent.json` (ex. `10.8.0.1`) |
+| `REDIS_HOST` | Recomandat prod | `10.60.0.2` (Redis VPS via WireGuard). Dacă lipsește, rămâne valoarea din `agent.json`. |
+| `BACKEND_URL` | Nu | Dacă lipsește, rămâne `BackendUrl` din `agent.json` (prod: `https://universalrestaurant.systems`). |
 | `REDIS_USER` | Nu | User ACL Redis, dacă e cazul |
 
 ### Build local (fără CI)
@@ -64,7 +65,7 @@ Sau latest (dacă numele asset-ului rămâne fix):
 
 Rulează `URSPrinterAgentSetup.exe` (WireGuard + agent). La final, bifează lansarea Configuratorului: enroll + imprimante, apoi repornește serviciul dacă e oprit.
 
-Vezi `docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md`.
+Vezi `docs/E2E_AGENT_DEPLOYMENT_CHECKLIST.md` și `docs/PRODUCTION_AGENT_CHECKLIST.md`.
 
 ## Build local (opțional)
 
