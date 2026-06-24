@@ -8,6 +8,7 @@ namespace PrinterAgent.Worker.Config;
 public class AppConfiguration : IAppConfiguration
 {
     private readonly IConfiguration _configuration;
+    private readonly IRedisRuntimeCredentials _redisRuntimeCredentials;
     /// <summary>
     /// agent.json next to the EXE. When %ProgramData%\...\agent.json has empty string placeholders,
     /// the merged <see cref="_configuration" /> still overrides install-dir; we fall back to the
@@ -15,9 +16,10 @@ public class AppConfiguration : IAppConfiguration
     /// </summary>
     private readonly IConfiguration? _bundledInInstallDir;
 
-    public AppConfiguration(IConfiguration configuration)
+    public AppConfiguration(IConfiguration configuration, IRedisRuntimeCredentials redisRuntimeCredentials)
     {
         _configuration = configuration;
+        _redisRuntimeCredentials = redisRuntimeCredentials;
         var bundledPath = Path.Combine(AppContext.BaseDirectory, "agent.json");
         if (File.Exists(bundledPath))
         {
@@ -98,13 +100,19 @@ public class AppConfiguration : IAppConfiguration
     public string RedisConnectionString => BuildFinalRedisConnectionString();
 
     public string RedisStreamKeyPrefix =>
-        (MergedString("Redis:StreamKeyPrefix") ?? "print.jobs").Trim();
+        _redisRuntimeCredentials.HasCredentials && !string.IsNullOrWhiteSpace(_redisRuntimeCredentials.StreamKeyPrefix)
+            ? _redisRuntimeCredentials.StreamKeyPrefix!.Trim()
+            : (MergedString("Redis:StreamKeyPrefix") ?? "print.jobs").Trim();
 
     public string RedisConsumerGroup =>
-        (MergedString("Redis:ConsumerGroup") ?? "printer-agents").Trim();
+        _redisRuntimeCredentials.HasCredentials && !string.IsNullOrWhiteSpace(_redisRuntimeCredentials.ConsumerGroup)
+            ? _redisRuntimeCredentials.ConsumerGroup!.Trim()
+            : (MergedString("Redis:ConsumerGroup") ?? "printer-agents").Trim();
 
     public string RedisConnectionSummary =>
         RedisConnectionHelper.RedactForLogs(BuildFinalRedisConnectionString());
+
+    public bool HasLegacyRedisPassword => !string.IsNullOrWhiteSpace(MergedString("Redis:Password"));
 
     private string BuildFinalRedisConnectionString()
     {
@@ -177,6 +185,17 @@ public class AppConfiguration : IAppConfiguration
     /// </summary>
     private string ResolveRedisConnectionString()
     {
+        if (_redisRuntimeCredentials.HasCredentials)
+        {
+            return BuildRedisConnectionString(
+                _redisRuntimeCredentials.Host!.Trim(),
+                (_redisRuntimeCredentials.Port > 0 ? _redisRuntimeCredentials.Port : 6379).ToString(),
+                _redisRuntimeCredentials.User?.Trim(),
+                _redisRuntimeCredentials.Password,
+                MergedBool("Redis:Ssl", false),
+                (MergedString("Redis:ClientName") ?? "URSPrinterAgent").Trim());
+        }
+
         var direct = (MergedString("RedisConnectionString") ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(direct))
             direct = (MergedString("Redis:ConnectionString") ?? string.Empty).Trim();
@@ -196,15 +215,22 @@ public class AppConfiguration : IAppConfiguration
         var ssl = MergedBool("Redis:Ssl", false);
         var clientName = (MergedString("Redis:ClientName") ?? "URSPrinterAgent").Trim();
 
-        var endpoint = $"{host.Trim()}:{port.Trim()}";
+        return BuildRedisConnectionString(host.Trim(), port.Trim(), user, password, ssl, clientName);
+    }
+
+    private static string BuildRedisConnectionString(
+        string host,
+        string port,
+        string? user,
+        string? password,
+        bool ssl,
+        string clientName)
+    {
+        var endpoint = $"{host}:{port}";
         var parts = new List<string> { endpoint };
 
         if (!string.IsNullOrEmpty(password))
         {
-            // NOTE: StackExchange.Redis 2.12 does NOT strip surrounding double quotes from values
-            // in the connection string — the literal characters are sent over AUTH and the server
-            // rejects with NOAUTH. The backend uses the same password un-quoted successfully, so
-            // we mirror that (passwords with ',' or '=' are not supported, which is acceptable).
             if (!string.IsNullOrWhiteSpace(user))
                 parts.Add($"user={user.Trim()}");
 

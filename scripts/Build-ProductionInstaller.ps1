@@ -13,12 +13,15 @@ param(
 $ErrorActionPreference = 'Stop'
 $agentJson = Join-Path $RepoRoot 'PrinterAgent.Worker\agent.json'
 
-if (-not $env:REDIS_PASSWORD) {
-    throw 'Set REDIS_PASSWORD environment variable (same as GitHub Actions secret).'
-}
-
 $json = Get-Content -LiteralPath $agentJson -Raw | ConvertFrom-Json
-$json.Redis.Password = $env:REDIS_PASSWORD
+if ($env:REDIS_PASSWORD) {
+    $json.Redis.Password = $env:REDIS_PASSWORD
+    Write-Host 'Injected REDIS_PASSWORD (legacy MSI fallback).'
+} else {
+    $json.Redis.Password = ''
+    if ($json.Redis.PSObject.Properties['User']) { $json.Redis.User = '' }
+    Write-Host 'No REDIS_PASSWORD — MSI without global Redis password (per-restaurant creds after enroll).'
+}
 if ($env:REDIS_HOST) { $json.Redis.Host = $env:REDIS_HOST }
 if ($env:REDIS_USER) { $json.Redis.User = $env:REDIS_USER }
 if ($env:BACKEND_URL) { $json.BackendUrl = $env:BACKEND_URL }

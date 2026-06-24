@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Worker.Config;
 
 namespace PrinterAgent.Worker;
@@ -24,6 +25,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
     private readonly IAgentSessionRenewalService _sessionRenewal;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IBackendClient _backendClient;
+    private readonly IRedisRuntimeCredentials _redisRuntimeCredentials;
+    private readonly IRedisConnectionMultiplexerHolder _redisHolder;
     private readonly IOptions<WireGuardOptions> _wireGuardOptions;
     private readonly IWireGuardTunnelManager _wireGuardTunnelManager;
     private readonly ILogger<AgentEnrollmentHostedService> _logger;
@@ -36,6 +39,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         IAgentSessionRenewalService sessionRenewal,
         IAppConfiguration appConfiguration,
         IBackendClient backendClient,
+        IRedisRuntimeCredentials redisRuntimeCredentials,
+        IRedisConnectionMultiplexerHolder redisHolder,
         IOptions<WireGuardOptions> wireGuardOptions,
         IWireGuardTunnelManager wireGuardTunnelManager,
         ILogger<AgentEnrollmentHostedService> logger)
@@ -45,6 +50,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         _sessionRenewal = sessionRenewal;
         _appConfiguration = appConfiguration;
         _backendClient = backendClient;
+        _redisRuntimeCredentials = redisRuntimeCredentials;
+        _redisHolder = redisHolder;
         _wireGuardOptions = wireGuardOptions;
         _wireGuardTunnelManager = wireGuardTunnelManager;
         _logger = logger;
@@ -222,6 +229,7 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         _logger.LogInformation("Enrollment succeeded for agentId {AgentId}.", payload.AgentId);
 
         await TryProvisionWireGuardConfAsync(payload.AgentId, cancellationToken).ConfigureAwait(false);
+        await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -267,18 +275,90 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken)
             .ConfigureAwait(false);
         await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken).ConfigureAwait(false);
 
-        if (IsWireGuardInfrastructureReady())
+        if (IsWireGuardInfrastructureReady() && IsRedisAuthReady())
             return true;
 
         var opt = _wireGuardOptions.Value;
         var path = opt.ConfigFilePath?.Trim() ?? string.Empty;
         _logger.LogWarning(
-            "WireGuard is not ready (conf or tunnel service missing). Path={Path}. Will retry in 30s. Bill print jobs need Redis at {RedisHost}.",
+            "Agent startup not ready (WireGuard or Redis credentials missing). WireGuardPath={Path} Redis={RedisHost} LegacyRedisPassword={Legacy}. Will retry in 30s.",
             path,
-            _appConfiguration.RedisConnectionSummary);
+            _appConfiguration.RedisConnectionSummary,
+            _appConfiguration.HasLegacyRedisPassword);
 
         return false;
+    }
+
+    private bool IsRedisAuthReady()
+    {
+        if (_redisRuntimeCredentials.HasCredentials)
+            return true;
+
+        return _appConfiguration.HasLegacyRedisPassword;
+    }
+
+    private async Task TryProvisionRedisCredentialsIfNeededAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _redisRuntimeCredentials.LoadAsync(cancellationToken).ConfigureAwait(false);
+            if (_redisRuntimeCredentials.HasCredentials)
+                return;
+
+            if (_appConfiguration.HasLegacyRedisPassword)
+            {
+                _logger.LogInformation(
+                    "Redis: using legacy MSI password from agent.json (per-restaurant credentials not fetched).");
+                return;
+            }
+
+            var agentId = _sessionStore.AgentId;
+            if (string.IsNullOrWhiteSpace(agentId))
+                return;
+
+            var creds = await _backendClient.GetRedisCredentialsAsync(agentId, cancellationToken).ConfigureAwait(false);
+            if (creds == null
+                || string.IsNullOrWhiteSpace(creds.Host)
+                || string.IsNullOrWhiteSpace(creds.User)
+                || string.IsNullOrWhiteSpace(creds.Password))
+            {
+                _logger.LogWarning(
+                    "Redis credentials: backend did not return credentials for agentId {AgentId}.",
+                    agentId);
+                return;
+            }
+
+            await _redisRuntimeCredentials.SaveAsync(
+                    new RedisRuntimeCredentialsPayload
+                    {
+                        Host = creds.Host.Trim(),
+                        Port = creds.Port > 0 ? creds.Port : 6379,
+                        User = creds.User.Trim(),
+                        Password = creds.Password,
+                        StreamKeyPrefix = string.IsNullOrWhiteSpace(creds.StreamKeyPrefix)
+                            ? "print.jobs"
+                            : creds.StreamKeyPrefix.Trim(),
+                        ConsumerGroup = string.IsNullOrWhiteSpace(creds.ConsumerGroup)
+                            ? "printer-agents"
+                            : creds.ConsumerGroup.Trim()
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            _redisHolder.Reset();
+
+            _logger.LogInformation(
+                "Redis credentials provisioned for ACL user {RedisUser} at {Host}:{Port}.",
+                creds.User,
+                creds.Host,
+                creds.Port);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Redis credentials provisioning failed; will retry.");
+        }
     }
 
     private bool IsWireGuardInfrastructureReady()
@@ -292,6 +372,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             return true;
 
         if (!File.Exists(path))
+            return false;
+
+        if (IsStaleWireGuardConf(path))
             return false;
 
         var serviceName = ResolveTunnelServiceName(opt, path);
@@ -334,10 +417,68 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         var serviceMissing = !string.IsNullOrWhiteSpace(serviceName)
             && !_wireGuardTunnelManager.ServiceExists(serviceName);
 
+        if (!confMissing && IsStaleWireGuardConf(path))
+        {
+            _logger.LogWarning(
+                "WireGuard: stale .conf at {Path} (dev LAN hub or AllowedIPs missing Redis host {RedisHost}); removing tunnel and re-provisioning from backend.",
+                path,
+                GetRedisHostFromSummary() ?? "(unknown)");
+            await TryRemoveWireGuardTunnelAsync(opt, path, cancellationToken).ConfigureAwait(false);
+            confMissing = true;
+            serviceMissing = !string.IsNullOrWhiteSpace(serviceName)
+                && !_wireGuardTunnelManager.ServiceExists(serviceName);
+        }
+
         if (!confMissing && !serviceMissing)
             return;
 
         await TryProvisionWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
+    }
+
+    private bool IsStaleWireGuardConf(string confPath)
+    {
+        try
+        {
+            var text = File.ReadAllText(confPath);
+            if (text.Contains("192.168.", StringComparison.Ordinal))
+                return true;
+
+            var redisHost = GetRedisHostFromSummary();
+            if (string.IsNullOrWhiteSpace(redisHost))
+                return false;
+
+            return !text.Contains(redisHost, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string? GetRedisHostFromSummary()
+    {
+        var summary = _appConfiguration.RedisConnectionSummary;
+        if (string.IsNullOrWhiteSpace(summary))
+            return null;
+
+        var endpoint = summary.Split(',')[0];
+        var host = endpoint.Split(':')[0];
+        return string.IsNullOrWhiteSpace(host) ? null : host.Trim();
+    }
+
+    private async Task TryRemoveWireGuardTunnelAsync(WireGuardOptions opt, string confPath, CancellationToken cancellationToken)
+    {
+        var serviceName = ResolveTunnelServiceName(opt, confPath);
+        if (!string.IsNullOrWhiteSpace(serviceName) && _wireGuardTunnelManager.ServiceExists(serviceName))
+        {
+            var tunnelName = serviceName.StartsWith("WireGuardTunnel$", StringComparison.Ordinal)
+                ? serviceName["WireGuardTunnel$".Length..]
+                : Path.GetFileNameWithoutExtension(confPath);
+            await _wireGuardTunnelManager.UninstallTunnelServiceAsync(tunnelName, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (File.Exists(confPath))
+            File.Delete(confPath);
     }
 
     private async Task TryProvisionWireGuardConfAsync(string agentId, CancellationToken cancellationToken)

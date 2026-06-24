@@ -57,6 +57,7 @@ try
             services.AddHostedService<PrinterStartupRecoveryHostedService>();
 
             services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
+            services.AddSingleton<IRedisRuntimeCredentials, RedisRuntimeCredentialsStore>();
             services.AddSingleton<IAgentSessionRenewalService, AgentSessionRenewalService>();
             services.AddSingleton<IAgentPrinterConfigurationUpdater, AgentPrinterConfigurationUpdater>();
             services.AddSingleton<IPrinterDiscoveryService, PrinterDiscoveryService>();
@@ -96,6 +97,29 @@ try
         .Build();
 
     var bootLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PrinterAgent.Worker");
+    var bootCfg = host.Services.GetRequiredService<IAppConfiguration>();
+    var programDataAgentJson = Path.Combine(AgentProgramData.Root, "agent.json");
+    string? programDataBackendUrl = null;
+    if (File.Exists(programDataAgentJson))
+    {
+        try
+        {
+            programDataBackendUrl = JsonDocument.Parse(File.ReadAllText(programDataAgentJson))
+                .RootElement.GetProperty("BackendUrl").GetString();
+        }
+        catch
+        {
+            // optional diagnostic only
+        }
+    }
+
+    bootLogger.LogInformation(
+        "Effective config (install-dir wins for BackendUrl/Redis): BackendUrl={BackendUrl} Redis={RedisSummary} Version={Version}. ProgramData BackendUrl={ProgramDataBackendUrl} (may differ after upgrade — see docs/PRODUCTION_AGENT_CHECKLIST.md).",
+        bootCfg.BackendUrl,
+        bootCfg.RedisConnectionSummary,
+        bootCfg.Version,
+        programDataBackendUrl ?? "(missing)");
+
     var infraAsm = typeof(AgentSessionStore).Assembly;
     var infraVer = infraAsm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
                    ?? infraAsm.GetName().Version?.ToString()

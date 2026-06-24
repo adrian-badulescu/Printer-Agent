@@ -4,13 +4,19 @@
 
 - Runner **self-hosted** Windows (`self-hosted`, `Windows`).
 - **.NET 10 SDK instalat o dată pe mașina runner** (Administrator), pe PATH — workflow-ul **nu** rulează `setup-dotnet` (contul serviciului GitHub Actions nu poate scrie în `C:\Program Files\dotnet`).
-- Secret **Actions** în repo: `REDIS_PASSWORD` (obligatoriu pentru build CI). Recomandat producție: `REDIS_HOST`=`10.60.0.2`, `BACKEND_URL`=`https://universalrestaurant.systems`. Opțional: `REDIS_USER`.
+- Secret **Actions** opțional: `REDIS_PASSWORD` (legacy — parolă globală în MSI). **Recomandat:** nu seta `REDIS_PASSWORD`; agenții primesc credențiale Redis **per restaurant** după enroll (`GET /api/agents/{id}/redis-credentials`). Recomandat producție: `REDIS_HOST`=`10.60.0.2`, `BACKEND_URL`=`https://universalrestaurant.systems`.
 
 ## Secrete Redis (nu în Git)
 
 **Nu** pune parola Redis în `agent.json` commit-at. Template-ul din repo are `"Password": ""`.
 
-La fiecare build CI (push `main`, `workflow_dispatch`, sau tag `v*`), workflow-ul injectează parola din GitHub Secrets în `agent.json` pe runner, apoi construiește MSI-ul. Parola ajunge în fișierul `agent.json` lângă EXE din installer, fără să fie în istoricul Git.
+### Model recomandat (per restaurant)
+
+După enroll, agentul apelează backend-ul pentru credențiale ACL limitate la `print.jobs.{restaurantId}` și le salvează în `%ProgramData%\URSPrinterAgent\redis.credentials.json` (DPAPI pe Windows). MSI-ul nu mai conține parola globală.
+
+### Legacy (un release)
+
+Dacă setezi secretul `REDIS_PASSWORD`, CI îl injectează în MSI ca înainte (fallback pentru agenți vechi).
 
 ### Configurare o singură dată
 
@@ -18,10 +24,10 @@ GitHub → **Settings** → **Secrets and variables** → **Actions** → **New 
 
 | Secret | Obligatoriu | Descriere |
 |--------|-------------|-----------|
-| `REDIS_PASSWORD` | Da | Parola Redis (ACL / requirepass) |
+| `REDIS_PASSWORD` | Nu (legacy) | Parola Redis globală în MSI — evită pentru build-uri noi |
 | `REDIS_HOST` | Recomandat prod | `10.60.0.2` (Redis VPS via WireGuard). Dacă lipsește, rămâne valoarea din `agent.json`. |
 | `BACKEND_URL` | Nu | Dacă lipsește, rămâne `BackendUrl` din `agent.json` (prod: `https://universalrestaurant.systems`). |
-| `REDIS_USER` | Nu | User ACL Redis, dacă e cazul |
+| `REDIS_USER` | Nu | Doar pentru legacy MSI cu ACL user global |
 
 ### Build local (fără CI)
 
@@ -29,7 +35,7 @@ GitHub → **Settings** → **Secrets and variables** → **Actions** → **New 
 2. Completează `Redis:Password` (și `BackendUrl`) **doar pe mașina ta** — nu face commit la parolă.
 3. Alternativ: `agent.local.json` (ignorat de git) dacă adaugi suport în viitor; pentru acum editezi `agent.json` local necomitat.
 
-După instalare, operatorul poate suprascrie enroll/imprimante în `%ProgramData%\URSPrinterAgent\agent.json`. Cheile Redis din MSI (lângă EXE) au prioritate dacă sunt non-goale.
+După instalare, operatorul poate suprascrie enroll/imprimante în `%ProgramData%\URSPrinterAgent\agent.json`. Cheile Redis din MSI (lângă EXE) au prioritate pentru Host/Port; parola vine din `redis.credentials.json` după enroll (sau din MSI doar la build-uri legacy cu `REDIS_PASSWORD`).
 
 ## Instalare la client (fără scripturi manuale)
 

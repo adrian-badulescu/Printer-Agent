@@ -47,9 +47,15 @@ jobs:
         run: |
           $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
           if (-not (Test-Path -LiteralPath $path)) { throw "Missing: $path" }
-          if (-not $env:REDIS_PASSWORD) { throw 'REDIS_PASSWORD repository secret is not set. Add it under Settings > Secrets and variables > Actions.' }
           $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-          $json.Redis.Password = $env:REDIS_PASSWORD
+          if ($env:REDIS_PASSWORD) {
+            $json.Redis.Password = $env:REDIS_PASSWORD
+            Write-Host 'Redis.Password injected from REDIS_PASSWORD secret (legacy one-release fallback).'
+          } else {
+            $json.Redis.Password = ''
+            if ($json.Redis.PSObject.Properties['User']) { $json.Redis.User = '' }
+            Write-Host 'REDIS_PASSWORD not set — MSI ships without global Redis password; agents fetch per-restaurant ACL credentials after enroll.'
+          }
           if ($env:REDIS_HOST) { $json.Redis.Host = $env:REDIS_HOST }
           if ($env:REDIS_USER) { $json.Redis.User = $env:REDIS_USER }
           if ($env:BACKEND_URL) { $json.BackendUrl = $env:BACKEND_URL }
@@ -57,13 +63,17 @@ jobs:
           $utf8NoBom = New-Object System.Text.UTF8Encoding $false
           [System.IO.File]::WriteAllText($path, $content, $utf8NoBom)
 
-      - name: Verify Redis password was injected
+      - name: Verify Redis config for MSI
         shell: powershell
         run: |
           $path = Join-Path $env:GITHUB_WORKSPACE 'PrinterAgent.Worker\agent.json'
-          $pw = (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).Redis.Password
-          if ([string]::IsNullOrWhiteSpace($pw)) { throw 'Redis.Password is still empty after inject. Check REDIS_PASSWORD secret.' }
-          Write-Host "Redis.Password present for MSI build (length=$($pw.Length) chars, value not logged)."
+          $redis = (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).Redis
+          if ([string]::IsNullOrWhiteSpace($redis.Host)) { throw 'Redis.Host is empty in agent.json after inject.' }
+          if ([string]::IsNullOrWhiteSpace($redis.Password)) {
+            Write-Host 'Redis.Password empty (expected for per-restaurant credential builds).'
+          } else {
+            Write-Host "Redis.Password present for legacy MSI build (length=$($redis.Password.Length) chars, value not logged)."
+          }
 
       - name: Build installer (Burn)
         run: dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfSignedMsiSigning=true

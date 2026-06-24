@@ -14,7 +14,20 @@ public interface IBackendClient
     /// <summary>Downloads the WireGuard client config (.conf) for this agent, or null when not available.</summary>
     Task<string?> GetWireGuardConfAsync(string agentId, CancellationToken cancellationToken = default);
 
+    /// <summary>Issues restaurant-scoped Redis ACL credentials for this agent, or null when not available.</summary>
+    Task<AgentRedisCredentialsResponse?> GetRedisCredentialsAsync(string agentId, CancellationToken cancellationToken = default);
+
     Task<Stream> DownloadAsync(Uri url, CancellationToken cancellationToken = default);
+}
+
+public sealed class AgentRedisCredentialsResponse
+{
+    public string Host { get; set; } = string.Empty;
+    public int Port { get; set; }
+    public string User { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string StreamKeyPrefix { get; set; } = string.Empty;
+    public string ConsumerGroup { get; set; } = string.Empty;
 }
 
 public sealed class AgentEnrollResponse

@@ -7,7 +7,7 @@ Use before tagging a production release (`v*`).
 | Check | Command / action | Expected |
 |-------|------------------|----------|
 | Public API | `Invoke-WebRequest https://universalrestaurant.systems/api/ping-lite` | HTTP 200 |
-| EF migrations | On production DB | `PrinterAgentEnrollmentCodes`, `PrinterAgentRegistrations`, refresh columns |
+| EF migrations | On production DB | `PrinterAgentEnrollmentCodes`, `PrinterAgentRegistrations`, `PrinterAgentRestaurantRedisCredentials`, refresh columns |
 | Enrollment pepper | `/etc/urs/qrapi-production.env` → `PrinterAgent__EnrollmentCodePepper` | Non-empty |
 | Update signature | `PrinterAgent__UpdateSignatureSecret` | Matches value baked into MSI at CI build |
 | Redis VPS | From App VPS with WG: `redis-cli -h 10.60.0.2 -a 'PASSWORD' ping` | `PONG` |
@@ -18,18 +18,11 @@ Use before tagging a production release (`v*`).
 
 | Secret | Production value |
 |--------|------------------|
-| `REDIS_PASSWORD` | Redis VPS `requirepass` |
+| `REDIS_PASSWORD` | **Optional (legacy)** — omit for new builds; agents fetch per-restaurant ACL creds after enroll |
 | `REDIS_HOST` | `10.60.0.2` |
-| `REDIS_USER` | Optional ACL user |
 | `BACKEND_URL` | `https://universalrestaurant.systems` (optional; bundled `agent.json` already has prod URL) |
 
-## Release (v1.2.7)
-
-- Tag: `v1.2.7` on `main`
-- Download: `https://github.com/adrian-badulescu/Printer-Agent/releases/download/v1.2.7/URSPrinterAgentSetup.exe`
-- Backend `PrinterAgent:LatestVersion` = `1.2.7` (deploy `production` branch to apply)
-
-CI on self-hosted runner requires `REDIS_PASSWORD` (and recommended `REDIS_HOST`=`10.60.0.2`). Set under GitHub → Settings → Secrets and variables → Actions, then re-run workflow or push a noop commit if the release build failed.
+CI no longer requires `REDIS_PASSWORD`. New MSI builds ship with empty `Redis.Password`; credentials land in `%ProgramData%\URSPrinterAgent\redis.credentials.json` after enroll (`GET /api/agents/{id}/redis-credentials`). Backend must be deployed with the migration and Redis 6+ ACL support before pilot.
 
 ## Pilot E2E
 
@@ -41,6 +34,30 @@ Automated smoke on pilot machine (2026-06-11):
 - `scripts/Verify-UrsPrinterAgentInstall.ps1 -ExpectServiceRunning` — install layout OK
 - Local `URSPrinterAgentSetup.exe` v1.2.7 upgrade (`/quiet`) — install-dir `BackendUrl` + `Redis.Host` now prod
 - Agent reaches `https://universalrestaurant.systems` (enroll returns 401 until valid prod enrollment code in ProgramData)
-- Redis consumer needs `REDIS_PASSWORD` baked into MSI (CI secret); local build without inject shows `NOAUTH` on `10.60.0.2`
+- Redis consumer: **per-restaurant ACL** via `redis-credentials` endpoint (or legacy MSI with `REDIS_PASSWORD` for one release)
 
 **Remaining for full pilot:** prod enrollment code in Configurator, CI release asset (self-hosted runner must be online), print test from manager UI.
+
+## Upgrading from dev/pilot to production MSI
+
+The installer **does not replace** `%ProgramData%\URSPrinterAgent\agent.json` if it already exists (enrollment, printers preserved). After upgrade you may see:
+
+| File | What you might see | What the service actually uses |
+|------|-------------------|--------------------------------|
+| `C:\Program Files\URSPrinterAgent\agent.json` | `BackendUrl` prod, `Redis.Host` `10.60.0.2`, `Version` 1.2.7 | **BackendUrl, Redis password/host** (BundledFirstKeys) |
+| `%ProgramData%\URSPrinterAgent\agent.json` | Old dev `192.168.43.142`, `Version` 1.2.3 | EnrollmentCode, Printers only |
+| `%ProgramData%\...\wireguard\urs-printer-agent.conf` | Dev hub `Endpoint = 192.168.43.142` | Tunnel routes — **must be reprovisioned** |
+
+**Repair (Admin PowerShell):**
+
+```powershell
+cd path\to\Printer-Agent\scripts
+.\Repair-ProductionAgentInstall.ps1
+# If Redis NOAUTH until new MSI: .\Repair-ProductionAgentInstall.ps1 -SetRedisPassword 'prod-redis-password'
+```
+
+Agent **1.2.8+** auto-detects stale WireGuard `.conf` (LAN `192.168.*` or missing prod Redis in `AllowedIPs`) and re-downloads from backend.
+
+**If `wireguard-conf` returns HTTP 400:** fix `PrinterAgent:WireGuard` + SSH on production API (see `docs/WIREGUARD-SSH-DEV.md`).
+
+**If Redis `NOAUTH` on `10.60.0.2`:** ensure backend deployed with ACL provisioning, agent enrolled (check `%ProgramData%\URSPrinterAgent\redis.credentials.json`), WireGuard up. Legacy MSI: set `REDIS_PASSWORD` secret and rebuild, or `Repair-ProductionAgentInstall.ps1 -SetRedisPassword`.

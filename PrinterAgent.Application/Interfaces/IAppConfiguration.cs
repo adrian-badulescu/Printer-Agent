@@ -23,6 +23,9 @@ public interface IAppConfiguration
     /// <summary>Conexiune Redis mascată pentru loguri (fără parolă).</summary>
     string RedisConnectionSummary { get; }
 
+    /// <summary>True when MSI/agent.json still carries a global Redis password (legacy one-release fallback).</summary>
+    bool HasLegacyRedisPassword { get; }
+
     List<Printer> Printers { get; }
     string Version { get; }
     /// <summary>Secret partajat cu backend pentru HMAC la update (aceeași valoare ca PrinterAgent:UpdateSignatureSecret).</summary>

@@ -52,6 +52,25 @@ public class BackendClient : IBackendClient
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
 
+    public async Task<AgentRedisCredentialsResponse?> GetRedisCredentialsAsync(string agentId, CancellationToken cancellationToken = default)
+    {
+        var url = $"api/agents/{Uri.EscapeDataString(agentId)}/redis-credentials";
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        var code = (int)response.StatusCode;
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogWarning(
+                "GET {Url} failed with HTTP {StatusCode}: {Body}",
+                url,
+                code,
+                string.IsNullOrWhiteSpace(body) ? "<empty>" : body.Trim());
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<AgentRedisCredentialsResponse>(cancellationToken: cancellationToken);
+    }
+
     public async Task<Stream> DownloadAsync(Uri url, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

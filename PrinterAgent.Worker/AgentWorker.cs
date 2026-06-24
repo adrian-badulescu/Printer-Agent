@@ -14,6 +14,7 @@ public class AgentWorker : BackgroundService
     private readonly IHeartbeatService _heartbeatService;
     private readonly IUpdateService _updateService;
     private readonly IAgentSessionStore _sessionStore;
+    private readonly IRedisRuntimeCredentials _redisRuntimeCredentials;
     private readonly IAppConfiguration _appConfiguration;
     private readonly ILogger<AgentWorker> _logger;
 
@@ -23,6 +24,7 @@ public class AgentWorker : BackgroundService
         IHeartbeatService heartbeatService,
         IUpdateService updateService,
         IAgentSessionStore sessionStore,
+        IRedisRuntimeCredentials redisRuntimeCredentials,
         IAppConfiguration appConfiguration,
         ILogger<AgentWorker> logger)
     {
@@ -31,6 +33,7 @@ public class AgentWorker : BackgroundService
         _heartbeatService = heartbeatService;
         _updateService = updateService;
         _sessionStore = sessionStore;
+        _redisRuntimeCredentials = redisRuntimeCredentials;
         _appConfiguration = appConfiguration;
         _logger = logger;
     }
@@ -44,11 +47,23 @@ public class AgentWorker : BackgroundService
 
             var agentId0 = _sessionStore.AgentId;
             var restaurantId0 = _sessionStore.SessionRestaurantId ?? _appConfiguration.RestaurantId;
-            if (!string.IsNullOrWhiteSpace(agentId0) && !string.IsNullOrWhiteSpace(restaurantId0))
+            if (string.IsNullOrWhiteSpace(agentId0) || string.IsNullOrWhiteSpace(restaurantId0))
+            {
+                _logger.LogWarning("Agent worker waiting for enrollment/session (AgentId/RestaurantId missing).");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+                continue;
+            }
+
+            if (_appConfiguration.HasLegacyRedisPassword)
                 break;
 
-            _logger.LogWarning("Agent worker waiting for enrollment/session (AgentId/RestaurantId missing).");
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+            await _redisRuntimeCredentials.LoadAsync(stoppingToken).ConfigureAwait(false);
+            if (_redisRuntimeCredentials.HasCredentials)
+                break;
+
+            _logger.LogWarning(
+                "Agent worker waiting for per-restaurant Redis credentials (enrollment service is provisioning).");
+            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
         }
 
         var agentId = _sessionStore.AgentId;
