@@ -81,6 +81,7 @@ jobs:
         with:
           name: URSPrinterAgentSetup
           path: URSPrinterAgentSetup.exe
+          retention-days: 3
 
       - name: Upload release asset (tag v* only)
         if: startsWith(github.ref, 'refs/tags/v')
