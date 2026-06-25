@@ -29,8 +29,13 @@ public sealed class AgentConfigurationStore
         {
             var bundledText = File.ReadAllText(bundledPath);
             var bundledNode = JsonNode.Parse(bundledText, documentOptions: AgentJsonDocumentOptions.ForRead);
-            if (bundledNode is JsonObject bundled)
-                return bundled;
+        if (bundledNode is JsonObject bundled)
+        {
+            // ProgramData with empty Redis.Password opts into per-restaurant ACL after enroll.
+            // Do not copy the install-dir (MSI) global password into operator config.
+            ClearProgramDataRedisPasswordForAcl(bundled);
+            return bundled;
+        }
         }
 
         return CreateDefaultTemplate();
@@ -38,8 +43,17 @@ public sealed class AgentConfigurationStore
 
     public void Save(JsonObject root)
     {
+        ClearProgramDataRedisPasswordForAcl(root);
         Directory.CreateDirectory(AgentProgramData.Root);
         File.WriteAllText(AgentJsonPath, root.ToJsonString(WriteOptions));
+    }
+
+    /// <summary>Empty <c>Redis.Password</c> in ProgramData signals ACL credentials from backend after enroll.</summary>
+    private static void ClearProgramDataRedisPasswordForAcl(JsonObject root)
+    {
+        if (!root.TryGetPropertyValue("Redis", out var redisNode) || redisNode is not JsonObject redis)
+            return;
+        redis["Password"] = "";
     }
 
     private static JsonObject CreateDefaultTemplate()

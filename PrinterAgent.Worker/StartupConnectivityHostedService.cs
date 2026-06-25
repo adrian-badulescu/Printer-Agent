@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
+using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Worker.Config;
 using StackExchange.Redis;
 

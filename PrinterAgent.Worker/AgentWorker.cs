@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
+using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Infrastructure.Redis;
 using StackExchange.Redis;
 
@@ -96,14 +97,28 @@ public class AgentWorker : BackgroundService
                 continue;
             }
 
+            // #region agent log
+            DebugSessionLog.Write(
+                "H3-H5",
+                "AgentWorker.ExecuteAsync",
+                "before heartbeat",
+                new
+                {
+                    currentAgentId,
+                    sessionRestaurantId = _sessionStore.SessionRestaurantId,
+                    configRestaurantId = _appConfiguration.RestaurantId,
+                    hasRefreshToken = !string.IsNullOrWhiteSpace(_sessionStore.RefreshToken)
+                });
+            // #endregion
+
             await _heartbeatService.SendHeartbeatAsync(stoppingToken);
 
             // #region agent log
             DebugSessionLog.Write(
-                "H3",
+                "H5",
                 "AgentWorker.ExecuteAsync",
-                "update check agentId",
-                new { currentAgentId, sessionAgentId = _sessionStore.AgentId });
+                "after heartbeat cycle",
+                new { currentAgentId });
             // #endregion
 
             await _updateService.CheckAndApplyUpdateAsync(currentAgentId, stoppingToken);

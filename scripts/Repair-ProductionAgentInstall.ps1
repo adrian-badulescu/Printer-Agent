@@ -94,6 +94,19 @@ if (Test-Path -LiteralPath $pdJson) {
     Write-Host '  (no ProgramData agent.json)'
 }
 
+# Opt into per-restaurant ACL: empty ProgramData Redis.Password overrides legacy MSI password behavior.
+if ((Test-Path -LiteralPath $pdJson) -and -not $SetRedisPassword) {
+    $pdObj = Get-Content -LiteralPath $pdJson -Raw | ConvertFrom-Json
+    if ($pdObj.Redis.Password) {
+        Write-Host ''
+        Write-Host '=== Opting into per-restaurant Redis ACL ===' -ForegroundColor Cyan
+        $pdObj.Redis.Password = ''
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($pdJson, ($pdObj | ConvertTo-Json -Depth 20), $utf8NoBom)
+        Write-Host '  Cleared Redis.Password in ProgramData agent.json (agent will call redis-credentials after restart).'
+    }
+}
+
 if ($SetRedisPassword) {
     Write-Host ''
     Write-Host '=== Patching install-dir Redis.Password (temporary) ===' -ForegroundColor Cyan
