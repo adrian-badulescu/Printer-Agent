@@ -47,39 +47,9 @@ public class HeartbeatService : IHeartbeatService
             var restaurantId = _sessionStore.SessionRestaurantId ?? _appConfiguration.RestaurantId;
             if (string.IsNullOrWhiteSpace(agentId) || string.IsNullOrWhiteSpace(restaurantId))
             {
-                var code = _appConfiguration.EnrollmentCode;
-                if (!string.IsNullOrWhiteSpace(code))
-                {
-                    _logger.LogWarning("Heartbeat recovery: session is missing; attempting enrollment using EnrollmentCode.");
-
-                    var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
-                    var payload = await _backendClient.EnrollAsync(code, instanceId, cancellationToken).ConfigureAwait(false);
-
-                    if (payload != null
-                        && !string.IsNullOrWhiteSpace(payload.AgentId)
-                        && !string.IsNullOrWhiteSpace(payload.AccessToken)
-                        && !string.IsNullOrWhiteSpace(payload.RefreshToken)
-                        && !string.IsNullOrWhiteSpace(payload.RestaurantId))
-                    {
-                        await _sessionStore.SaveSessionAsync(
-                                payload.AgentId,
-                                payload.AccessToken,
-                                payload.RefreshToken,
-                                payload.RestaurantId,
-                                payload.ExpiresAtUtc,
-                                cancellationToken)
-                            .ConfigureAwait(false);
-
-                        agentId = _sessionStore.AgentId;
-                        restaurantId = _sessionStore.SessionRestaurantId ?? payload.RestaurantId;
-                    }
-                }
-
-                if (string.IsNullOrWhiteSpace(agentId) || string.IsNullOrWhiteSpace(restaurantId))
-                {
-                    _logger.LogWarning("Heartbeat skipped: AgentId or RestaurantId is missing in session.");
-                    return;
-                }
+                _logger.LogWarning(
+                    "Heartbeat skipped: no session (agentId/restaurantId missing). Enrollment loop will enroll when a valid EnrollmentCode is set in Configurator.");
+                return;
             }
 
             var mergedPrinters = await _printerDiscovery
@@ -116,39 +86,9 @@ public class HeartbeatService : IHeartbeatService
             if (!ok)
             {
                 _logger.LogWarning(
-                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Session cleared; if refresh failed permanently, set EnrollmentCode in agent.json and restart the service.",
+                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Session cleared; enrollment loop will re-enroll when a new EnrollmentCode is set in Manager/Configurator.",
                     agentId);
                 await _sessionStore.ClearSessionAsync(cancellationToken).ConfigureAwait(false);
-
-                var code = _appConfiguration.EnrollmentCode;
-                if (!string.IsNullOrWhiteSpace(code))
-                {
-                    _logger.LogWarning(
-                        "Heartbeat recovery: attempting re-enrollment using EnrollmentCode (agent.json) after session was cleared.");
-
-                    var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
-                    var payload = await _backendClient.EnrollAsync(code, instanceId, cancellationToken).ConfigureAwait(false);
-                    if (payload != null
-                        && !string.IsNullOrWhiteSpace(payload.AgentId)
-                        && !string.IsNullOrWhiteSpace(payload.AccessToken)
-                        && !string.IsNullOrWhiteSpace(payload.RefreshToken))
-                    {
-                        await _sessionStore.SaveSessionAsync(
-                                payload.AgentId,
-                                payload.AccessToken,
-                                payload.RefreshToken,
-                                payload.RestaurantId,
-                                payload.ExpiresAtUtc,
-                                cancellationToken)
-                            .ConfigureAwait(false);
-                        _logger.LogInformation("Heartbeat recovery: re-enrollment succeeded (agentId={AgentId}).", payload.AgentId);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Heartbeat recovery: re-enrollment failed; will retry on next heartbeat cycle.");
-                    }
-                }
-
                 return;
             }
 

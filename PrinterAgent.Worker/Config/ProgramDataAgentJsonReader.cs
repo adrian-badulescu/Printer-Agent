@@ -39,6 +39,17 @@ internal static class ProgramDataAgentJsonReader
         return root;
     }
 
+    /// <summary>True when ProgramData agent.json defines <c>Redis.Password</c> as empty (operator opts into per-restaurant ACL).</summary>
+    public static bool ProgramDataOptedIntoPerRestaurantRedisCredentials()
+    {
+        var root = GetRootElement();
+        if (root is null || !root.Value.TryGetProperty("Redis", out var redis))
+            return false;
+        if (!redis.TryGetProperty("Password", out var password))
+            return false;
+        return password.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(password.GetString());
+    }
+
     private static JsonElement? GetRoot()
     {
         var path = Path.Combine(AgentProgramData.Root, "agent.json");

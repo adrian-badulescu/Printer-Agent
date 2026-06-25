@@ -4,7 +4,7 @@
   "BackendUrl": "https://universalrestaurant.systems",
   "BackendJwtToken": "",
   "UpdateSignatureSecret": "change-me-same-as-backend-PrinterAgent",
-  "Version": "1.2.8",
+  "Version": "1.3.0",
   "MaxPrintRetryAttempts": 5,
   "PrintRetryBaseDelayMs": 1000,
   "PrinterConnectTimeoutSeconds": 15,

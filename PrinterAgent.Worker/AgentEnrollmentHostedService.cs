@@ -112,8 +112,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
-                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
-                        return;
+                    if (await TryFinishAndStayAliveAsync(cancellationToken).ConfigureAwait(false))
+                        continue;
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -121,8 +121,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken).ConfigureAwait(false);
                 if (_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
                 {
-                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
-                        return;
+                    if (await TryFinishAndStayAliveAsync(cancellationToken).ConfigureAwait(false))
+                        continue;
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -139,8 +139,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                                 "EnrollmentCode is missing in agent.json, but AgentId and refresh token exist in session — continuing startup; heartbeat will retry refresh and WireGuard provisioning.");
                         }
 
-                        if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
-                            return;
+                        if (await TryFinishAndStayAliveAsync(cancellationToken).ConfigureAwait(false))
+                            continue;
                     }
                     else if (!warnedMissingCode)
                     {
@@ -157,8 +157,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 var ok = await TryEnrollOnceAsync(code, cancellationToken).ConfigureAwait(false);
                 if (ok)
                 {
-                    if (await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
-                        return;
+                    if (await TryFinishAndStayAliveAsync(cancellationToken).ConfigureAwait(false))
+                        continue;
                     await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -179,6 +179,16 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         }
     }
 
+    /// <summary>When operational, idle instead of exiting so re-enroll works after session loss (e.g. agent removed in Manager UI).</summary>
+    private async Task<bool> TryFinishAndStayAliveAsync(CancellationToken cancellationToken)
+    {
+        if (!await TryFinishWireGuardSetupAsync(cancellationToken).ConfigureAwait(false))
+            return false;
+
+        await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private async Task<bool> TryEnrollOnceAsync(string code, CancellationToken cancellationToken)
     {
         var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
@@ -193,6 +203,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
             var delay = Compute429Backoff(response);
+            // #region agent log
+            DebugSessionLog.Write("H4", "TryEnrollOnceAsync", "enroll rate limited", new { status = 429, delaySec = delay.TotalSeconds });
+            // #endregion
             _logger.LogWarning(
                 "Enrollment rejected (429); backing off for {DelaySeconds:F0}s then retrying.",
                 delay.TotalSeconds);
@@ -215,8 +228,11 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 }
 
                 _logger.LogWarning(
-                    "Enrollment rejected (401): {Body}. The code may be invalid/expired or issued for a different backend/DB/pepper. Waiting for a new code.",
+                    "Enrollment rejected (401): {Body}. Generate a **new** enrollment code in Manager UI (codes are single-use) and save it in Configurator.",
                     err);
+                // #region agent log
+                DebugSessionLog.Write("H1", "TryEnrollOnceAsync", "enroll unauthorized", new { status = 401, codeSuffix = code.Length >= 4 ? code[^4..] : "?" });
+                // #endregion
                 return false;
             }
 
@@ -245,6 +261,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             .ConfigureAwait(false);
 
         _logger.LogInformation("Enrollment succeeded for agentId {AgentId}.", payload.AgentId);
+        // #region agent log
+        DebugSessionLog.Write("H1", "TryEnrollOnceAsync", "enroll succeeded", new { agentId = payload.AgentId });
+        // #endregion
 
         await TryProvisionWireGuardConfAsync(payload.AgentId, cancellationToken).ConfigureAwait(false);
         await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken).ConfigureAwait(false);
@@ -437,16 +456,37 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             if (_appConfiguration.HasLegacyRedisPassword)
             {
                 // #region agent log
-                DebugSessionLog.Write("H1", "TryProvisionRedisCredentials", "skipped legacy bundled MSI password", new { agentId = _sessionStore.AgentId });
+                DebugSessionLog.Write(
+                    "H1",
+                    "TryProvisionRedisCredentials",
+                    "skipped legacy bundled MSI password",
+                    new
+                    {
+                        agentId = _sessionStore.AgentId,
+                        programDataAclOptIn = ProgramDataAgentJsonReader.ProgramDataOptedIntoPerRestaurantRedisCredentials()
+                    });
                 // #endregion
                 _logger.LogInformation(
-                    "Redis: using legacy MSI password from install-dir agent.json (per-restaurant credentials not fetched).");
+                    "Redis: using legacy MSI password from install-dir agent.json (per-restaurant credentials not fetched). To use ACL, set Redis.Password to empty in %ProgramData%\\URSPrinterAgent\\agent.json or clear it in Program Files\\URSPrinterAgent\\agent.json.");
                 return;
             }
 
             var agentId = _sessionStore.AgentId;
             if (string.IsNullOrWhiteSpace(agentId))
                 return;
+
+            // #region agent log
+            DebugSessionLog.Write(
+                "H2",
+                "TryProvisionRedisCredentials",
+                "fetching ACL credentials from backend",
+                new
+                {
+                    agentId,
+                    programDataAclOptIn = ProgramDataAgentJsonReader.ProgramDataOptedIntoPerRestaurantRedisCredentials(),
+                    legacyBundledPassword = _appConfiguration.HasLegacyRedisPassword
+                });
+            // #endregion
 
             var creds = await _backendClient.GetRedisCredentialsAsync(agentId, cancellationToken).ConfigureAwait(false);
             if (creds == null

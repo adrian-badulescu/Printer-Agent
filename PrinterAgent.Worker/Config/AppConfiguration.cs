@@ -62,6 +62,12 @@ public class AppConfiguration : IAppConfiguration
     /// <summary>Uses merged host config; if null/whitespace, uses install-dir <c>agent.json</c> only.</summary>
     private string? MergedString(string key)
     {
+        if (string.Equals(key, "Redis:Password", StringComparison.OrdinalIgnoreCase)
+            && ProgramDataAgentJsonReader.ProgramDataOptedIntoPerRestaurantRedisCredentials())
+        {
+            return string.Empty;
+        }
+
         if (BundledFirstKeys.Contains(key))
         {
             var bundled = _bundledInInstallDir?[key];
@@ -116,7 +122,9 @@ public class AppConfiguration : IAppConfiguration
     public string RedisConnectionSummary =>
         RedisConnectionHelper.RedactForLogs(BuildFinalRedisConnectionString());
 
-    public bool HasLegacyRedisPassword => !string.IsNullOrWhiteSpace(BundledInstallDirString("Redis:Password"));
+    public bool HasLegacyRedisPassword =>
+        !string.IsNullOrWhiteSpace(BundledInstallDirString("Redis:Password"))
+        && !ProgramDataAgentJsonReader.ProgramDataOptedIntoPerRestaurantRedisCredentials();
 
     private string BuildFinalRedisConnectionString()
     {

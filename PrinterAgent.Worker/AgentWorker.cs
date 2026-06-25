@@ -91,8 +91,26 @@ public class AgentWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            await _sessionStore.LoadAsync(stoppingToken).ConfigureAwait(false);
+            var currentAgentId = _sessionStore.AgentId;
+            if (string.IsNullOrWhiteSpace(currentAgentId))
+            {
+                _logger.LogWarning("Agent worker: session lost; waiting for re-enrollment.");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
+                continue;
+            }
+
             await _heartbeatService.SendHeartbeatAsync(stoppingToken);
-            await _updateService.CheckAndApplyUpdateAsync(agentId, stoppingToken);
+
+            // #region agent log
+            DebugSessionLog.Write(
+                "H3",
+                "AgentWorker.ExecuteAsync",
+                "update check agentId",
+                new { currentAgentId, sessionAgentId = _sessionStore.AgentId });
+            // #endregion
+
+            await _updateService.CheckAndApplyUpdateAsync(currentAgentId, stoppingToken);
 
             await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
