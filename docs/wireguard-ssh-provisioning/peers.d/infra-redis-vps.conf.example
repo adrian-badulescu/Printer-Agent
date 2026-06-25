@@ -1,0 +1,3 @@
+[Peer]
+PublicKey = <redis-vps-public-key-base64>
+AllowedIPs = 10.60.0.2/32

@@ -495,10 +495,14 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 || string.IsNullOrWhiteSpace(creds.Password))
             {
                 // #region agent log
-                DebugSessionLog.Write("H2", "TryProvisionRedisCredentials", "backend returned no credentials", new { agentId, hadResponse = creds != null });
+                DebugSessionLog.Write(
+                    "H2",
+                    "TryProvisionRedisCredentials",
+                    "backend returned no credentials",
+                    new { agentId, hadResponse = creds != null });
                 // #endregion
                 _logger.LogWarning(
-                    "Redis credentials: backend did not return credentials for agentId {AgentId}.",
+                    "Redis credentials: backend did not return credentials for agentId {AgentId}. Check API logs for 'Could not provision Redis ACL user' (App VPS → Redis VPS ACL).",
                     agentId);
                 return;
             }

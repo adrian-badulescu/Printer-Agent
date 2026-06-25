@@ -1,0 +1,3 @@
+[Peer]
+PublicKey = <db-vps-public-key-base64>
+AllowedIPs = 10.60.0.3/32

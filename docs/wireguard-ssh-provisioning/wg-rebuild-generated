@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Rebuild wg0.generated.conf from wg0.base.conf (Interface only) + peers.d/*.conf.
+# Validates base and generated syntax before committing.
+#
+# Usage:
+#   wg-rebuild-generated [wgInterface]
+#
+# Installed as /usr/local/bin/wg-rebuild-generated
+
+WG_IF="${1:-wg0}"
+WG_DIR="/etc/wireguard"
+BASE_CONF="${WG_DIR}/${WG_IF}.base.conf"
+RUNTIME_CONF="${WG_DIR}/${WG_IF}.conf"
+GEN_CONF="${WG_DIR}/${WG_IF}.generated.conf"
+PEERS_DIR="${WG_DIR}/peers.d"
+
+die() {
+  echo "wg-rebuild-generated: $*" >&2
+  exit 1
+}
+
+if [[ ! -f "$BASE_CONF" ]]; then
+  die "missing base config: ${BASE_CONF}"
+fi
+
+if grep -qE '^\[Peer\]' "$BASE_CONF"; then
+  die "wg0.base.conf must contain only [Interface] (no [Peer] blocks). Move static peers to ${PEERS_DIR}/infra-*.conf and run wg-migrate-legacy-hub if upgrading a legacy hub."
+fi
+
+if grep -qE 'AllowedIPs\s*=\s*[^[:space:]]+\[Peer\]' "$BASE_CONF"; then
+  die "wg0.base.conf contains a corrupted AllowedIPs line (trailing [Peer]). Fix base or run wg-migrate-legacy-hub."
+fi
+
+install -d -m 0700 "${PEERS_DIR}"
+
+TMP_GEN="${GEN_CONF}.tmp"
+cp "$BASE_CONF" "$TMP_GEN"
+echo "" >> "$TMP_GEN"
+
+if compgen -G "${PEERS_DIR}/*.conf" > /dev/null; then
+  # shellcheck disable=SC2012
+  for f in $(ls -1 "${PEERS_DIR}"/*.conf | sort); do
+    if grep -qE 'AllowedIPs\s*=\s*[^[:space:]]+\[Peer\]' "$f"; then
+      die "corrupted AllowedIPs in peer file: ${f}"
+    fi
+    if ! grep -qE '^\[Peer\]' "$f"; then
+      die "peer file must start with [Peer]: ${f}"
+    fi
+    echo "" >> "$TMP_GEN"
+    cat "$f" >> "$TMP_GEN"
+    echo "" >> "$TMP_GEN"
+  done
+fi
+
+chmod 0600 "$TMP_GEN"
+mv -f "$TMP_GEN" "$GEN_CONF"
+
+# wg-quick strip requires a path ending in .conf (not .tmp).
+if ! wg-quick strip "$GEN_CONF" >/dev/null 2>&1; then
+  die "generated config failed wg-quick strip validation (syntax error). Check ${PEERS_DIR}/ and ${BASE_CONF}"
+fi
+
+cp "$BASE_CONF" "$RUNTIME_CONF"
+chmod 0600 "$RUNTIME_CONF"
+
+echo "ok: rebuilt ${GEN_CONF} ($(wc -l < "$GEN_CONF" | tr -d ' ') lines)"

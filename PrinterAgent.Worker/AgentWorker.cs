@@ -40,30 +40,18 @@ public class AgentWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Do not exit on startup when enrollment hasn't happened yet; wait for session to appear.
+        // Wait for enrollment session only; heartbeats must run even while Redis ACL / WG provision.
         while (!stoppingToken.IsCancellationRequested)
         {
             await _sessionStore.LoadAsync(stoppingToken).ConfigureAwait(false);
 
             var agentId0 = _sessionStore.AgentId;
             var restaurantId0 = _sessionStore.SessionRestaurantId ?? _appConfiguration.RestaurantId;
-            if (string.IsNullOrWhiteSpace(agentId0) || string.IsNullOrWhiteSpace(restaurantId0))
-            {
-                _logger.LogWarning("Agent worker waiting for enrollment/session (AgentId/RestaurantId missing).");
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
-                continue;
-            }
-
-            if (_appConfiguration.HasLegacyRedisPassword)
+            if (!string.IsNullOrWhiteSpace(agentId0) && !string.IsNullOrWhiteSpace(restaurantId0))
                 break;
 
-            await _redisRuntimeCredentials.LoadAsync(stoppingToken).ConfigureAwait(false);
-            if (_redisRuntimeCredentials.HasCredentials)
-                break;
-
-            _logger.LogWarning(
-                "Agent worker waiting for per-restaurant Redis credentials (enrollment service is provisioning).");
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+            _logger.LogWarning("Agent worker waiting for enrollment/session (AgentId/RestaurantId missing).");
+            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken).ConfigureAwait(false);
         }
 
         var agentId = _sessionStore.AgentId;
@@ -72,6 +60,14 @@ public class AgentWorker : BackgroundService
             return;
 
         _logger.LogInformation("Agent Worker starting. AgentId: {AgentId}, RestaurantId: {RestaurantId}", agentId, restaurantId);
+
+        // #region agent log
+        DebugSessionLog.Write(
+            "H3",
+            "AgentWorker.ExecuteAsync",
+            "worker started; heartbeats enabled before redis ACL",
+            new { agentId, restaurantId, hasLegacyRedis = _appConfiguration.HasLegacyRedisPassword });
+        // #endregion
 
         var printerCount = _appConfiguration.Printers.Count;
         if (printerCount == 0)
@@ -125,6 +121,26 @@ public class AgentWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (!_appConfiguration.HasLegacyRedisPassword)
+            {
+                await _redisRuntimeCredentials.LoadAsync(stoppingToken).ConfigureAwait(false);
+                if (!_redisRuntimeCredentials.HasCredentials)
+                {
+                    _logger.LogWarning(
+                        "Redis stream consumer waiting for per-restaurant credentials (enrollment service is provisioning).");
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+            }
+
             try
             {
                 await _redisConsumer.StartConsumingAsync(restaurantId, stoppingToken).ConfigureAwait(false);

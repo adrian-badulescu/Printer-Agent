@@ -4,14 +4,14 @@ Backend repo: `QR_Restaurant_backend` — `appsettings.DevHost.json` has `Printe
 
 Without the key, `GET /api/agents/{id}/wireguard-conf` returns **HTTP 400** and the Windows agent never gets a `.conf` (tunnel is not created).
 
-**Full server setup** (wg0, scripts, `wgctl`, Redis on `wg0`): see [wireguard-ssh-provisioning/README.md](wireguard-ssh-provisioning/README.md).
+**Full server setup** (wg0, scripts, `wgctl`, Redis on `wg0`): see [wireguard-ssh-provisioning/README.md](wireguard-ssh-provisioning/README.md). Production hub: [PRODUCTION_HUB.md](wireguard-ssh-provisioning/PRODUCTION_HUB.md).
 
 ## 1) Server prerequisites
 
 On `192.168.43.142` (or your dev host), complete [wireguard-ssh-provisioning/README.md](wireguard-ssh-provisioning/README.md) sections 1–4:
 
 - `wg0` up, UDP `51820` open
-- `/usr/local/bin/wg-peer-upsert`, `wg-peer-delete`, `wg-sync-peers` installed (scripts in this repo folder)
+- `/usr/local/bin/wg-rebuild-generated`, `wg-peer-upsert`, `wg-peer-delete`, `wg-sync-peers` installed (scripts in this repo folder)
 - user `wgctl` + sudoers
 - SSH keypair: **private** in `/etc/urs/`, **public** in `/home/wgctl/.ssh/authorized_keys`
 

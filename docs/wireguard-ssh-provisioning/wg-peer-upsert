@@ -19,17 +19,15 @@ fi
 WG_IF="wg0"
 WG_DIR="/etc/wireguard"
 PEERS_DIR="${WG_DIR}/peers.d"
-BASE_CONF="${WG_DIR}/${WG_IF}.base.conf"
-GEN_CONF="${WG_DIR}/${WG_IF}.generated.conf"
+REBUILD="/usr/local/bin/wg-rebuild-generated"
 
-if [[ ! -f "$BASE_CONF" ]]; then
-  echo "missing base config: ${BASE_CONF}" >&2
+if [[ ! -x "$REBUILD" ]]; then
+  echo "missing ${REBUILD}; install wg-rebuild-generated first" >&2
   exit 3
 fi
 
 install -d -m 0700 "${PEERS_DIR}"
 
-# Keep peer file path stable for idempotency.
 PEER_FILE="${PEERS_DIR}/${AGENT_ID}.conf"
 TMP_FILE="${PEER_FILE}.tmp"
 
@@ -42,26 +40,8 @@ EOF
 chmod 0600 "$TMP_FILE"
 mv -f "$TMP_FILE" "$PEER_FILE"
 
-# Generate full config deterministically: base + peers sorted by filename.
-TMP_GEN="${GEN_CONF}.tmp"
-cp "$BASE_CONF" "$TMP_GEN"
-echo "" >> "$TMP_GEN"
+"$REBUILD" "$WG_IF"
 
-if compgen -G "${PEERS_DIR}/*.conf" > /dev/null; then
-  # shellcheck disable=SC2012
-  for f in $(ls -1 "${PEERS_DIR}"/*.conf | sort); do
-    echo "" >> "$TMP_GEN"
-    cat "$f" >> "$TMP_GEN"
-    echo "" >> "$TMP_GEN"
-  done
-fi
-
-chmod 0600 "$TMP_GEN"
-mv -f "$TMP_GEN" "$GEN_CONF"
-
-# Apply to running interface using syncconf; strip removes non-wg(8) directives.
-# Note: requires bash process substitution.
-wg syncconf "$WG_IF" <(wg-quick strip "$GEN_CONF")
+wg syncconf "$WG_IF" <(wg-quick strip "${WG_DIR}/${WG_IF}.generated.conf")
 
 echo "ok: upserted peer ${AGENT_ID} ${ALLOWED_IP}"
-

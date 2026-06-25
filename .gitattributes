@@ -1,0 +1,3 @@
+# WireGuard hub scripts must use LF (bash on Linux breaks on CRLF from Windows).
+docs/wireguard-ssh-provisioning/wg-* text eol=lf
+docs/wireguard-ssh-provisioning/install-wireguard-hub-scripts.sh text eol=lf

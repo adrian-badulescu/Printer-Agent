@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# One-time migration: extract [Peer] blocks from wg0.base.conf into peers.d/infra-*.conf,
+# rewrite base to [Interface] only, then rebuild generated config.
+#
+# Usage:
+#   wg-migrate-legacy-hub [wgInterface]
+#
+# Idempotent: if base already has no [Peer], exits successfully after rebuild.
+
+WG_IF="${1:-wg0}"
+WG_DIR="/etc/wireguard"
+BASE_CONF="${WG_DIR}/${WG_IF}.base.conf"
+PEERS_DIR="${WG_DIR}/peers.d"
+REBUILD="/usr/local/bin/wg-rebuild-generated"
+SYNC="/usr/local/bin/wg-sync-peers"
+
+die() {
+  echo "wg-migrate-legacy-hub: $*" >&2
+  exit 1
+}
+
+slugify() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+}
+
+if [[ ! -f "$BASE_CONF" ]]; then
+  die "missing ${BASE_CONF}"
+fi
+
+if [[ ! -x "$REBUILD" ]]; then
+  die "install wg-rebuild-generated to ${REBUILD} first"
+fi
+
+if ! grep -qE '^\[Peer\]' "$BASE_CONF"; then
+  echo "base already has no [Peer] blocks; rebuilding generated config only."
+  "$REBUILD" "$WG_IF"
+  if [[ -x "$SYNC" ]]; then
+    "$SYNC" "$WG_IF"
+  fi
+  exit 0
+fi
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+BACKUP_DIR="${WG_DIR}/backup-migrate-${STAMP}"
+mkdir -p "$BACKUP_DIR"
+cp -a "$BASE_CONF" "${BACKUP_DIR}/"
+[[ -f "${WG_DIR}/${WG_IF}.conf" ]] && cp -a "${WG_DIR}/${WG_IF}.conf" "${BACKUP_DIR}/"
+[[ -f "${WG_DIR}/${WG_IF}.generated.conf" ]] && cp -a "${WG_DIR}/${WG_IF}.generated.conf" "${BACKUP_DIR}/"
+[[ -d "$PEERS_DIR" ]] && cp -a "$PEERS_DIR" "${BACKUP_DIR}/"
+
+echo "backup: ${BACKUP_DIR}"
+
+install -d -m 0700 "${PEERS_DIR}"
+
+TMP_BASE="$(mktemp)"
+TMP_PEER="$(mktemp)"
+PEER_IDX=0
+IN_PEER=0
+PEER_NAME=""
+PEER_SLUG=""
+
+finish_peer() {
+  if [[ "$IN_PEER" -eq 0 ]]; then
+    return
+  fi
+  if [[ ! -s "$TMP_PEER" ]]; then
+    IN_PEER=0
+    return
+  fi
+
+  # Fix corrupted AllowedIPs lines: strip trailing [Peer] glued to CIDR.
+  sed -i -E 's/^(AllowedIPs[[:space:]]*=[[:space:]]*[^[:space:]]+)\[Peer\][[:space:]]*$/\1/' "$TMP_PEER"
+
+  if [[ -z "$PEER_SLUG" ]]; then
+    PEER_IDX=$((PEER_IDX + 1))
+    PEER_SLUG="peer-$(printf '%03d' "$PEER_IDX")"
+  fi
+
+  OUT="${PEERS_DIR}/infra-${PEER_SLUG}.conf"
+  if [[ -f "$OUT" ]]; then
+    echo "skip existing infra peer file: ${OUT}"
+  else
+    {
+      echo "[Peer]"
+      grep -vE '^\[Peer\]' "$TMP_PEER" | sed '/^[[:space:]]*$/d'
+    } > "$OUT"
+    chmod 0600 "$OUT"
+    echo "wrote ${OUT}"
+  fi
+
+  : > "$TMP_PEER"
+  IN_PEER=0
+  PEER_NAME=""
+  PEER_SLUG=""
+}
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" =~ ^\[Peer\] ]]; then
+    finish_peer
+    IN_PEER=1
+    PEER_SLUG=""
+    continue
+  fi
+
+  if [[ "$IN_PEER" -eq 1 ]]; then
+    if [[ "$line" =~ ^#[[:space:]]*(.+)$ ]]; then
+      PEER_NAME="${BASH_REMATCH[1]}"
+      PEER_SLUG="$(slugify "$PEER_NAME")"
+      continue
+    fi
+    echo "$line" >> "$TMP_PEER"
+    continue
+  fi
+
+  # Interface section (and PostUp/PostDown) only.
+  echo "$line" >> "$TMP_BASE"
+done < "$BASE_CONF"
+
+finish_peer
+
+if grep -qE '^\[Peer\]' "$TMP_BASE"; then
+  rm -f "$TMP_BASE" "$TMP_PEER"
+  die "internal error: [Peer] still present in rewritten base"
+fi
+
+mv -f "$TMP_BASE" "$BASE_CONF"
+chmod 0600 "$BASE_CONF"
+rm -f "$TMP_PEER"
+
+"$REBUILD" "$WG_IF"
+
+if [[ -x "$SYNC" ]]; then
+  "$SYNC" "$WG_IF"
+fi
+
+echo ""
+echo "=== migration complete ==="
+echo "Verify:"
+echo "  grep '\\[Peer\\]' ${BASE_CONF}   # expect no output"
+echo "  ls -la ${PEERS_DIR}/"
+echo "  wg show ${WG_IF}"
+echo "  wg-peer-upsert smoke test (optional)"

@@ -11,7 +11,7 @@ Use before tagging a production release (`v*`).
 | Enrollment pepper | `/etc/urs/qrapi-production.env` → `PrinterAgent__EnrollmentCodePepper` | Non-empty |
 | Update signature | `PrinterAgent__UpdateSignatureSecret` | Matches value baked into MSI at CI build |
 | Redis VPS | From App VPS with WG: `redis-cli -h 10.60.0.2 -a 'PASSWORD' ping` | `PONG` |
-| WireGuard SSH | `wg-peer-upsert` on hub; `AllowedIps` = `10.60.0.2/32` | Peer created on enroll |
+| WireGuard SSH | `wg-peer-upsert` on hub; `AllowedIps` = `10.60.0.2/32` | Hub layout: [wireguard-ssh-provisioning/PRODUCTION_HUB.md](wireguard-ssh-provisioning/PRODUCTION_HUB.md) |
 | Enrollment code | Manager UI → Settings → printer agent | New 10-char code for pilot restaurant |
 
 ## GitHub Actions secrets (Printer-Agent repo)
