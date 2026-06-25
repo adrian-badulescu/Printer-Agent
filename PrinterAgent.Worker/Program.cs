@@ -53,7 +53,6 @@ try
 
             // Tunel WireGuard (opțional) înainte de Redis / enroll / AgentWorker
             services.AddHostedService<WireGuardTunnelHostedService>();
-            services.AddHostedService<StartupConnectivityHostedService>();
             services.AddHostedService<PrinterStartupRecoveryHostedService>();
 
             services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
@@ -93,6 +92,7 @@ try
 
             services.AddHostedService<AgentEnrollmentHostedService>();
             services.AddHostedService<AgentWorker>();
+            services.AddHostedService<StartupConnectivityHostedService>();
         })
         .Build();
 

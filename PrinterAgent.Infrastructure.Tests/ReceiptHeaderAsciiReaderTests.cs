@@ -23,11 +23,22 @@ public class ReceiptHeaderAsciiReaderTests
     }
 
     [Fact]
-    public void DefaultLines_contains_urs_header()
+    public void DefaultLines_contains_brand_header_and_url()
     {
         var lines = ReceiptHeaderAsciiReader.DefaultLines();
 
-        Assert.Equal(5, lines.Count);
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(ReceiptHeaderAsciiReader.DefaultHeaderText, lines[0]);
+        Assert.Equal(ReceiptHeaderAsciiReader.DefaultUrlText, lines[1]);
         Assert.All(lines, line => Assert.True(line.Length <= ReceiptHeaderAsciiReader.MaxLineWidth));
+    }
+
+    [Fact]
+    public void ParseContent_keeps_short_url_on_one_line()
+    {
+        var lines = ReceiptHeaderAsciiReader.ParseContent(ReceiptHeaderAsciiReader.DefaultUrlText);
+
+        Assert.Single(lines);
+        Assert.Equal(ReceiptHeaderAsciiReader.DefaultUrlText, lines[0]);
     }
 }

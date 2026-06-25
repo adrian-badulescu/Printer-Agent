@@ -146,7 +146,7 @@ public class EscPosPrinterService : IPrinterService
         bw.Write(Encoding.ASCII.GetBytes("\n"));
         bw.Write(new byte[] { 0x1B, 0x61, 0x00 });
 
-        bw.Write(Encoding.ASCII.GetBytes($"Order: {SafeAscii(job.Payload.OrderId)}\n"));
+        bw.Write(Encoding.ASCII.GetBytes($"Order:{SafeAscii(job.Payload.OrderId)}\n"));
         if (!string.IsNullOrWhiteSpace(tableName))
             bw.Write(Encoding.ASCII.GetBytes($"TABLE: {tableName}\n"));
 

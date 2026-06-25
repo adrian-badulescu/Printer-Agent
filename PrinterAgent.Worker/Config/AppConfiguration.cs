@@ -73,6 +73,10 @@ public class AppConfiguration : IAppConfiguration
         return !string.IsNullOrWhiteSpace(_configuration[key]) ? _configuration[key] : _bundledInInstallDir?[key];
     }
 
+    /// <summary>Install-dir <c>agent.json</c> only (MSI factory defaults). Ignores ProgramData overrides.</summary>
+    private string? BundledInstallDirString(string key) =>
+        _bundledInInstallDir?[key];
+
     private bool MergedBool(string key, bool defaultValue)
     {
         var s = MergedString(key);
@@ -112,7 +116,7 @@ public class AppConfiguration : IAppConfiguration
     public string RedisConnectionSummary =>
         RedisConnectionHelper.RedactForLogs(BuildFinalRedisConnectionString());
 
-    public bool HasLegacyRedisPassword => !string.IsNullOrWhiteSpace(MergedString("Redis:Password"));
+    public bool HasLegacyRedisPassword => !string.IsNullOrWhiteSpace(BundledInstallDirString("Redis:Password"));
 
     private string BuildFinalRedisConnectionString()
     {
@@ -211,7 +215,8 @@ public class AppConfiguration : IAppConfiguration
             port = "6379";
 
         var user = MergedString("Redis:User");
-        var password = MergedString("Redis:Password");
+        // Password: runtime creds handled above; legacy MSI password is install-dir only (not stale ProgramData).
+        var password = BundledInstallDirString("Redis:Password");
         var ssl = MergedBool("Redis:Ssl", false);
         var clientName = (MergedString("Redis:ClientName") ?? "URSPrinterAgent").Trim();
 

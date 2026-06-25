@@ -23,7 +23,7 @@ public interface IAppConfiguration
     /// <summary>Conexiune Redis mascată pentru loguri (fără parolă).</summary>
     string RedisConnectionSummary { get; }
 
-    /// <summary>True when MSI/agent.json still carries a global Redis password (legacy one-release fallback).</summary>
+    /// <summary>True when MSI/install-dir still carries a global Redis password (legacy one-release fallback). ProgramData password is ignored.</summary>
     bool HasLegacyRedisPassword { get; }
 
     List<Printer> Printers { get; }

@@ -30,8 +30,11 @@ public sealed class AgentEnrollmentHostedService : IHostedService
     private readonly IOptions<WireGuardOptions> _wireGuardOptions;
     private readonly IWireGuardTunnelManager _wireGuardTunnelManager;
     private readonly ILogger<AgentEnrollmentHostedService> _logger;
+    private bool _loggedOperationalRedisReady;
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
+    private CancellationTokenSource? _wireGuardBgCts;
+    private Task? _wireGuardBackgroundTask;
 
     public AgentEnrollmentHostedService(
         IHttpClientFactory httpClientFactory,
@@ -78,6 +81,21 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             try
             {
                 await _loopTask.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+            }
+            catch { }
+        }
+
+        try
+        {
+            _wireGuardBgCts?.Cancel();
+        }
+        catch { }
+
+        if (_wireGuardBackgroundTask != null)
+        {
+            try
+            {
+                await _wireGuardBackgroundTask.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
             }
             catch { }
         }
@@ -277,18 +295,127 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
         await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken).ConfigureAwait(false);
 
-        if (IsWireGuardInfrastructureReady() && IsRedisAuthReady())
-            return true;
+        var redisReady = IsRedisAuthReady();
+        var wgReady = IsWireGuardInfrastructureReady();
+        var sessionReady = _sessionStore.HasUsableSession(TimeSpan.FromMinutes(5));
 
-        var opt = _wireGuardOptions.Value;
-        var path = opt.ConfigFilePath?.Trim() ?? string.Empty;
-        _logger.LogWarning(
-            "Agent startup not ready (WireGuard or Redis credentials missing). WireGuardPath={Path} Redis={RedisHost} LegacyRedisPassword={Legacy}. Will retry in 30s.",
-            path,
-            _appConfiguration.RedisConnectionSummary,
-            _appConfiguration.HasLegacyRedisPassword);
+        // #region agent log
+        DebugSessionLog.Write(
+            "H1-H3",
+            "AgentEnrollmentHostedService.TryFinishWireGuardSetupAsync",
+            "readiness snapshot",
+            new
+            {
+                sessionReady,
+                redisReady,
+                wgReady,
+                hasRuntimeCreds = _redisRuntimeCredentials.HasCredentials,
+                legacyBundledPassword = _appConfiguration.HasLegacyRedisPassword,
+                agentId = _sessionStore.AgentId
+            });
+        // #endregion
+
+        if (redisReady && sessionReady)
+        {
+            if (!wgReady)
+            {
+                if (!_loggedOperationalRedisReady)
+                {
+                    _loggedOperationalRedisReady = true;
+                    _logger.LogInformation(
+                        "Agent operationally ready for print (session + Redis). WireGuard tunnel still provisioning — required at restaurant sites without another VPN route to {RedisHost}.",
+                        _appConfiguration.RedisConnectionSummary);
+                }
+
+                StartWireGuardBackgroundProvisioningIfNeeded(cancellationToken);
+            }
+
+            // #region agent log
+            DebugSessionLog.Write("H3-H6", "TryFinishWireGuardSetupAsync", "enrollment loop exit", new { redisReady, sessionReady, wgReady });
+            // #endregion
+            return true;
+        }
+
+        {
+            var opt = _wireGuardOptions.Value;
+            var path = opt.ConfigFilePath?.Trim() ?? string.Empty;
+            _logger.LogWarning(
+                "Agent startup not ready. WireGuardReady={WireGuardReady} RedisReady={RedisReady} SessionReady={SessionReady} WireGuardPath={Path} LegacyBundledRedisPassword={Legacy}. Will retry in 30s.",
+                wgReady,
+                redisReady,
+                sessionReady,
+                path,
+                _appConfiguration.HasLegacyRedisPassword);
+        }
 
         return false;
+    }
+
+    private void StartWireGuardBackgroundProvisioningIfNeeded(CancellationToken parentCancellationToken)
+    {
+        var opt = _wireGuardOptions.Value;
+        if (!opt.Enabled)
+            return;
+
+        if (IsWireGuardInfrastructureReady())
+            return;
+
+        if (_wireGuardBackgroundTask is { IsCompleted: false })
+            return;
+
+        _wireGuardBgCts?.Cancel();
+        _wireGuardBgCts = CancellationTokenSource.CreateLinkedTokenSource(parentCancellationToken);
+        _wireGuardBackgroundTask = RunWireGuardBackgroundAsync(_wireGuardBgCts.Token);
+
+        // #region agent log
+        DebugSessionLog.Write("H6", "StartWireGuardBackgroundProvisioning", "background WG retry started", new { configPath = opt.ConfigFilePath });
+        // #endregion
+    }
+
+    private async Task RunWireGuardBackgroundAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("WireGuard: background provisioning started (retries until tunnel service is ready).");
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+                if (!_sessionStore.HasUsableSession(TimeSpan.FromMinutes(5)))
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                await TryProvisionWireGuardIfNeededAsync(cancellationToken).ConfigureAwait(false);
+
+                if (IsWireGuardInfrastructureReady())
+                {
+                    _logger.LogInformation("WireGuard: background provisioning complete — tunnel infrastructure is ready.");
+                    // #region agent log
+                    DebugSessionLog.Write("H6", "RunWireGuardBackgroundAsync", "wireguard infrastructure ready", null);
+                    // #endregion
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "WireGuard: background provisioning iteration failed; will retry.");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+        }
     }
 
     private bool IsRedisAuthReady()
@@ -309,8 +436,11 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
             if (_appConfiguration.HasLegacyRedisPassword)
             {
+                // #region agent log
+                DebugSessionLog.Write("H1", "TryProvisionRedisCredentials", "skipped legacy bundled MSI password", new { agentId = _sessionStore.AgentId });
+                // #endregion
                 _logger.LogInformation(
-                    "Redis: using legacy MSI password from agent.json (per-restaurant credentials not fetched).");
+                    "Redis: using legacy MSI password from install-dir agent.json (per-restaurant credentials not fetched).");
                 return;
             }
 
@@ -324,6 +454,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 || string.IsNullOrWhiteSpace(creds.User)
                 || string.IsNullOrWhiteSpace(creds.Password))
             {
+                // #region agent log
+                DebugSessionLog.Write("H2", "TryProvisionRedisCredentials", "backend returned no credentials", new { agentId, hadResponse = creds != null });
+                // #endregion
                 _logger.LogWarning(
                     "Redis credentials: backend did not return credentials for agentId {AgentId}.",
                     agentId);
@@ -348,6 +481,10 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 .ConfigureAwait(false);
 
             _redisHolder.Reset();
+
+            // #region agent log
+            DebugSessionLog.Write("H2", "TryProvisionRedisCredentials", "provisioned runtime redis credentials", new { agentId, user = creds.User, host = creds.Host });
+            // #endregion
 
             _logger.LogInformation(
                 "Redis credentials provisioned for ACL user {RedisUser} at {Host}:{Port}.",
@@ -494,6 +631,13 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 return;
 
             var conf = await _backendClient.GetWireGuardConfAsync(agentId, cancellationToken).ConfigureAwait(false);
+            // #region agent log
+            DebugSessionLog.Write(
+                "H5",
+                "TryProvisionWireGuardConfAsync",
+                string.IsNullOrWhiteSpace(conf) ? "wireguard-conf empty or HTTP error" : "wireguard-conf received",
+                new { agentId, gotConf = !string.IsNullOrWhiteSpace(conf), confBytes = conf?.Length ?? 0 });
+            // #endregion
             if (string.IsNullOrWhiteSpace(conf))
             {
                 _logger.LogWarning("WireGuard provisioning: backend did not return a .conf for agentId {AgentId}.", agentId);
@@ -550,10 +694,16 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 confPath);
 
             await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+            // #region agent log
+            DebugSessionLog.Write("H7", "TryInstallTunnelServiceAsync", "tunnel service installed", new { serviceName, confPath });
+            // #endregion
             TryStartTunnelService(opt, serviceName);
         }
         catch (Exception ex)
         {
+            // #region agent log
+            DebugSessionLog.Write("H7", "TryInstallTunnelServiceAsync", "tunnel service install failed", new { confPath, error = ex.GetType().Name });
+            // #endregion
             _logger.LogWarning(ex, "WireGuard provisioning: failed to install tunnel service from {Path}.", confPath);
         }
     }

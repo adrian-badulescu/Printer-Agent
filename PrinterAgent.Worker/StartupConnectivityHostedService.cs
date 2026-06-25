@@ -14,15 +14,18 @@ namespace PrinterAgent.Worker;
 public sealed class StartupConnectivityHostedService : IHostedService
 {
     private readonly IAppConfiguration _appConfiguration;
+    private readonly IRedisRuntimeCredentials _redisRuntimeCredentials;
     private readonly IOptions<ConnectivityOptions> _options;
     private readonly ILogger<StartupConnectivityHostedService> _logger;
 
     public StartupConnectivityHostedService(
         IAppConfiguration appConfiguration,
+        IRedisRuntimeCredentials redisRuntimeCredentials,
         IOptions<ConnectivityOptions> options,
         ILogger<StartupConnectivityHostedService> logger)
     {
         _appConfiguration = appConfiguration;
+        _redisRuntimeCredentials = redisRuntimeCredentials;
         _options = options;
         _logger = logger;
     }
@@ -38,18 +41,7 @@ public sealed class StartupConnectivityHostedService : IHostedService
 
         if (!string.IsNullOrWhiteSpace(_appConfiguration.RedisConnectionString))
         {
-            try
-            {
-                await using var mux = await ConnectionMultiplexer.ConnectAsync(_appConfiguration.RedisConnectionString).ConfigureAwait(false);
-                var latency = await mux.GetDatabase().PingAsync().ConfigureAwait(false);
-                _logger.LogInformation("Connectivity: Redis PING OK ({Ms:F0} ms).", latency.TotalMilliseconds);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Connectivity: Redis did not respond. Check network / VPN / connection string.");
-            }
+            await TryRedisPingWithRetriesAsync(cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -103,4 +95,54 @@ public sealed class StartupConnectivityHostedService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task TryRedisPingWithRetriesAsync(CancellationToken cancellationToken)
+    {
+        const int attempts = 8;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            await _redisRuntimeCredentials.LoadAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await using var mux = await ConnectionMultiplexer.ConnectAsync(_appConfiguration.RedisConnectionString)
+                    .ConfigureAwait(false);
+                var latency = await mux.GetDatabase().PingAsync().ConfigureAwait(false);
+                _logger.LogInformation("Connectivity: Redis PING OK ({Ms:F0} ms) on attempt {Attempt}.", latency.TotalMilliseconds, attempt);
+                // #region agent log
+                DebugSessionLog.Write("H4", "StartupConnectivityHostedService", "redis ping ok", new { attempt });
+                // #endregion
+                return;
+            }
+            catch (Exception ex)
+            {
+                var last = attempt == attempts;
+                if (last)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Connectivity: Redis did not respond after {Attempts} attempts. Check VPN / WireGuard / credentials.",
+                        attempts);
+                    // #region agent log
+                    DebugSessionLog.Write("H4", "StartupConnectivityHostedService", "redis ping failed", new { attempt, last });
+                    // #endregion
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Connectivity: Redis not ready yet (attempt {Attempt}/{Attempts}); enrollment may still be provisioning credentials or VPN.",
+                        attempt,
+                        attempts);
+                }
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
+    }
 }

@@ -1,9 +1,6 @@
-# Receipt header (ASCII art) printed centered on non-fiscal bills.
+# Receipt header printed centered on non-fiscal bills.
 # Edit this file under %ProgramData%\URSPrinterAgent\receipt-header.ascii
 # Changes apply on the next print job (no service restart required).
 # Keep each line at most 32 characters (typical thermal receipt width).
-   __  __  ____   _____      
-  / / / / / __ \ / ___/      
- / / / / / /_/ / \__ \       
-/ /_/ / / _, _/ ___/ /       
-\____(_)_/ |_(_)____(_)
+Universal Restaurant Systems
+www.universalrestaurant.systems
