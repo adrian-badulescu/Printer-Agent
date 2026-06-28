@@ -2,7 +2,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
-using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Infrastructure.Redis;
 using StackExchange.Redis;
 
@@ -62,14 +61,6 @@ public class AgentWorker : BackgroundService
 
         _logger.LogInformation("Agent Worker starting. AgentId: {AgentId}, RestaurantId: {RestaurantId}", agentId, restaurantId);
 
-        // #region agent log
-        DebugSessionLog.Write(
-            "H3",
-            "AgentWorker.ExecuteAsync",
-            "worker started; heartbeats enabled before redis ACL",
-            new { agentId, restaurantId, hasLegacyRedis = _appConfiguration.HasLegacyRedisPassword });
-        // #endregion
-
         var printerCount = _appConfiguration.Printers.Count;
         if (printerCount == 0)
         {
@@ -97,29 +88,7 @@ public class AgentWorker : BackgroundService
                 continue;
             }
 
-            // #region agent log
-            DebugSessionLog.Write(
-                "H3-H5",
-                "AgentWorker.ExecuteAsync",
-                "before heartbeat",
-                new
-                {
-                    currentAgentId,
-                    sessionRestaurantId = _sessionStore.SessionRestaurantId,
-                    configRestaurantId = _appConfiguration.RestaurantId,
-                    hasRefreshToken = !string.IsNullOrWhiteSpace(_sessionStore.RefreshToken)
-                });
-            // #endregion
-
             await _heartbeatService.SendHeartbeatAsync(stoppingToken);
-
-            // #region agent log
-            DebugSessionLog.Write(
-                "H5",
-                "AgentWorker.ExecuteAsync",
-                "after heartbeat cycle",
-                new { currentAgentId });
-            // #endregion
 
             await _updateService.CheckAndApplyUpdateAsync(currentAgentId, stoppingToken);
 

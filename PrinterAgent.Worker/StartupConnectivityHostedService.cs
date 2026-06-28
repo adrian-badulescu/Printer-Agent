@@ -2,7 +2,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
-using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Worker.Config;
 using StackExchange.Redis;
 
@@ -109,9 +108,6 @@ public sealed class StartupConnectivityHostedService : IHostedService
                     .ConfigureAwait(false);
                 var latency = await mux.GetDatabase().PingAsync().ConfigureAwait(false);
                 _logger.LogInformation("Connectivity: Redis PING OK ({Ms:F0} ms) on attempt {Attempt}.", latency.TotalMilliseconds, attempt);
-                // #region agent log
-                DebugSessionLog.Write("H4", "StartupConnectivityHostedService", "redis ping ok", new { attempt });
-                // #endregion
                 return;
             }
             catch (Exception ex)
@@ -123,9 +119,6 @@ public sealed class StartupConnectivityHostedService : IHostedService
                         ex,
                         "Connectivity: Redis did not respond after {Attempts} attempts. Check VPN / WireGuard / credentials.",
                         attempts);
-                    // #region agent log
-                    DebugSessionLog.Write("H4", "StartupConnectivityHostedService", "redis ping failed", new { attempt, last });
-                    // #endregion
                 }
                 else
                 {

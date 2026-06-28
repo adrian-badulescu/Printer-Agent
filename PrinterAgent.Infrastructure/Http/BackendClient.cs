@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Domain;
-using PrinterAgent.Infrastructure.Observability;
 namespace PrinterAgent.Infrastructure.Http;
 
 public class BackendClient : IBackendClient
@@ -62,13 +61,6 @@ public class BackendClient : IBackendClient
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var bodySnippet = string.IsNullOrWhiteSpace(body) ? "<empty>" : body.Trim();
-            // #region agent log
-            DebugSessionLog.Write(
-                "H2",
-                "BackendClient.GetRedisCredentialsAsync",
-                "redis-credentials HTTP error",
-                new { agentId, statusCode = code, bodySnippet = bodySnippet.Length > 200 ? bodySnippet[..200] : bodySnippet });
-            // #endregion
             _logger.LogWarning(
                 "GET {Url} failed with HTTP {StatusCode}: {Body}",
                 url,
@@ -76,10 +68,6 @@ public class BackendClient : IBackendClient
                 bodySnippet);
             return null;
         }
-
-        // #region agent log
-        DebugSessionLog.Write("H2", "BackendClient.GetRedisCredentialsAsync", "redis-credentials HTTP ok", new { agentId, statusCode = code });
-        // #endregion
 
         return await response.Content.ReadFromJsonAsync<AgentRedisCredentialsResponse>(cancellationToken: cancellationToken);
     }
@@ -95,19 +83,6 @@ public class BackendClient : IBackendClient
     {
         var response = await _httpClient.PostAsJsonAsync("api/agents/heartbeat", agentInfo, cancellationToken);
         var code = (int)response.StatusCode;
-        // #region agent log
-        DebugSessionLog.Write(
-            "H4",
-            "BackendClient.SendHeartbeatAsync",
-            code is >= 200 and < 300 ? "heartbeat HTTP ok" : "heartbeat HTTP error",
-            new
-            {
-                agentId = agentInfo.AgentId,
-                restaurantId = agentInfo.RestaurantId,
-                statusCode = code,
-                printerCount = agentInfo.Printers?.Count ?? 0
-            });
-        // #endregion
         // Treat any auth/validation-style rejection as "not ok", so HeartbeatService can clear session
         // and attempt a recovery path (re-enroll).
         if (code is 400 or 401 or 403)

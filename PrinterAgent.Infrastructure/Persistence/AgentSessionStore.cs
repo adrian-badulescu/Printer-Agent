@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -38,10 +39,31 @@ public sealed class AgentSessionStore : IAgentSessionStore
         var path = Path.Combine(_baseDir, SessionFileName);
         if (!File.Exists(path))
         {
-            _session = null;
-            return;
+            var recovered = FindLatestSessionTempFile();
+            if (recovered == null)
+            {
+                _session = null;
+                return;
+            }
+
+            _logger.LogWarning("Main session file missing; loading from recovered temp file {Path}.", recovered);
+            path = recovered;
         }
 
+        if (!await TryLoadSessionFromPathAsync(path, cancellationToken).ConfigureAwait(false)
+            && path.EndsWith(SessionFileName, StringComparison.OrdinalIgnoreCase))
+        {
+            var recovered = FindLatestSessionTempFile();
+            if (recovered != null && !string.Equals(recovered, path, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Retrying session load from temp file {Path}.", recovered);
+                await TryLoadSessionFromPathAsync(recovered, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task<bool> TryLoadSessionFromPathAsync(string path, CancellationToken cancellationToken)
+    {
         try
         {
             await using var fs = File.OpenRead(path);
@@ -50,7 +72,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
             if (fileDto == null)
             {
                 _session = null;
-                return;
+                return false;
             }
 
             var token = ResolveAccessToken(fileDto);
@@ -58,13 +80,13 @@ public sealed class AgentSessionStore : IAgentSessionStore
             if (string.IsNullOrWhiteSpace(fileDto.AgentId))
             {
                 _session = null;
-                return;
+                return false;
             }
 
             if (string.IsNullOrWhiteSpace(token) && string.IsNullOrWhiteSpace(refresh))
             {
                 _session = null;
-                return;
+                return false;
             }
 
             _session = new AgentSessionDto
@@ -75,11 +97,30 @@ public sealed class AgentSessionStore : IAgentSessionStore
                 RestaurantId = fileDto.RestaurantId ?? string.Empty,
                 ExpiresAtUtc = DateTime.SpecifyKind(fileDto.ExpiresAtUtc, DateTimeKind.Utc)
             };
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Cannot read {File}; session ignored.", SessionFileName);
+            _logger.LogWarning(ex, "Cannot read {File}; session ignored.", path);
             _session = null;
+            return false;
+        }
+    }
+
+    private string? FindLatestSessionTempFile()
+    {
+        try
+        {
+            if (!Directory.Exists(_baseDir))
+                return null;
+
+            return Directory.EnumerateFiles(_baseDir, SessionFileName + ".tmp.*")
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -234,6 +275,25 @@ public sealed class AgentSessionStore : IAgentSessionStore
                     attempt,
                     SessionSaveMaxAttempts);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                TryDeleteQuiet(tempPath);
+                if (attempt >= SessionSaveMaxAttempts)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Session save access denied after {Max} attempts (agentId={AgentId}).",
+                        SessionSaveMaxAttempts,
+                        agentId);
+                    throw;
+                }
+
+                _logger.LogWarning(
+                    ex,
+                    "Session save access denied (attempt {Attempt}/{Max}); retrying.",
+                    attempt,
+                    SessionSaveMaxAttempts);
+            }
             finally
             {
                 SessionSaveLock.Release();
@@ -255,7 +315,7 @@ public sealed class AgentSessionStore : IAgentSessionStore
         if (File.Exists(path))
         {
             File.Delete(path);
-            _logger.LogWarning("Session cleared ({File}). Re-enroll: set EnrollmentCode in agent.json and restart the service.", SessionFileName);
+            _logger.LogWarning("Session cleared ({File}). Recovery: device credential renew, or set EnrollmentCode in agent.json.", SessionFileName);
         }
 
         return Task.CompletedTask;

@@ -1,62 +1,70 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
+using PrinterAgent.Infrastructure.Security;
 
 namespace PrinterAgent.Infrastructure.Http;
 
-public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
+public sealed class AgentDeviceRenewalService : IAgentDeviceRenewalService
 {
-    private const int MaxRefreshAttempts = 3;
-
-    /// <summary>Refresh rotates the token server-side; parallel refresh with the same token invalidates the session.</summary>
-    private static readonly SemaphoreSlim RefreshGate = AgentAuthCoordination.Gate;
+    private const int MaxRenewAttempts = 3;
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAgentSessionStore _sessionStore;
-    private readonly ILogger<AgentSessionRenewalService> _logger;
+    private readonly IDeviceCredentialStore _deviceCredentialStore;
+    private readonly ILogger<AgentDeviceRenewalService> _logger;
 
-    public AgentSessionRenewalService(
+    public AgentDeviceRenewalService(
         IHttpClientFactory httpClientFactory,
         IAgentSessionStore sessionStore,
-        ILogger<AgentSessionRenewalService> logger)
+        IDeviceCredentialStore deviceCredentialStore,
+        ILogger<AgentDeviceRenewalService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _sessionStore = sessionStore;
+        _deviceCredentialStore = deviceCredentialStore;
         _logger = logger;
     }
 
-    public async Task<bool> TryRenewIfAccessExpiredAsync(
-        TimeSpan expirySkew,
-        CancellationToken cancellationToken = default,
-        bool force = false)
+    public async Task<bool> TryRenewWithDeviceCredentialAsync(CancellationToken cancellationToken = default)
     {
-        await RefreshGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await AgentAuthCoordination.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-
-            if (!force && _sessionStore.HasUsableSession(expirySkew))
-                return true;
-
-            if (string.IsNullOrWhiteSpace(_sessionStore.RefreshToken) || string.IsNullOrWhiteSpace(_sessionStore.AgentId))
+            await _deviceCredentialStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            if (!_deviceCredentialStore.HasCredential)
                 return false;
 
+            var agentId = _deviceCredentialStore.AgentId!;
+            var credential = _deviceCredentialStore.DeviceCredential!;
             var instanceId = _sessionStore.GetOrCreateClientInstanceId(cancellationToken);
-            var client = _httpClientFactory.CreateClient("PrinterAgentEnroll");
+            if (!string.Equals(agentId, instanceId.ToString("D"), StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "Device credential agentId {CredentialAgentId} does not match clientInstanceId {InstanceId}; renew skipped.",
+                    agentId,
+                    instanceId);
+                return false;
+            }
 
-            for (var attempt = 1; attempt <= MaxRefreshAttempts; attempt++)
+            var client = _httpClientFactory.CreateClient("PrinterAgentEnroll");
+            var timestampUtc = DateTime.UtcNow;
+            var signature = PrinterAgentRenewSignature.Compute(credential, agentId, instanceId, timestampUtc);
+
+            for (var attempt = 1; attempt <= MaxRenewAttempts; attempt++)
             {
                 try
                 {
                     using var response = await client.PostAsJsonAsync(
-                            "api/agents/refresh",
-                            new RefreshRequestBody
+                            "api/agents/renew",
+                            new RenewRequestBody
                             {
-                                AgentId = _sessionStore.AgentId,
+                                AgentId = agentId,
                                 ClientInstanceId = instanceId,
-                                RefreshToken = _sessionStore.RefreshToken
+                                TimestampUtc = timestampUtc,
+                                DeviceCredential = credential,
+                                Signature = signature
                             },
                             cancellationToken)
                         .ConfigureAwait(false);
@@ -65,19 +73,19 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
 
                     if (response.IsSuccessStatusCode)
                     {
-                        var payload = await response.Content.ReadFromJsonAsync<RefreshResponseBody>(cancellationToken: cancellationToken)
+                        var payload = await response.Content.ReadFromJsonAsync<RenewResponseBody>(cancellationToken: cancellationToken)
                             .ConfigureAwait(false);
                         if (payload is null
                             || string.IsNullOrWhiteSpace(payload.AccessToken)
                             || string.IsNullOrWhiteSpace(payload.RefreshToken)
                             || string.IsNullOrWhiteSpace(payload.RestaurantId))
                         {
-                            _logger.LogWarning("Invalid refresh response.");
+                            _logger.LogWarning("Invalid renew response.");
                             return false;
                         }
 
                         await _sessionStore.SaveSessionAsync(
-                                _sessionStore.AgentId,
+                                agentId,
                                 payload.AccessToken,
                                 payload.RefreshToken,
                                 payload.RestaurantId,
@@ -85,38 +93,38 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                                 cancellationToken)
                             .ConfigureAwait(false);
 
-                        _logger.LogInformation("Access token renewed for agentId {AgentId}.", _sessionStore.AgentId);
+                        _logger.LogInformation("Session recovered via device credential renew for agentId {AgentId}.", agentId);
                         return true;
                     }
 
-                    if (code == 401 || code == 403)
+                    if (code is 401 or 403)
                     {
                         var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                        _logger.LogWarning("Refresh rejected ({Status}): {Body} — refresh token is no longer valid.", code, err);
+                        _logger.LogWarning("Device renew rejected ({Status}): {Body}", code, err);
                         return false;
                     }
 
                     if (code == 429)
                     {
-                        _logger.LogWarning("Refresh rejected (429); try again later.");
+                        _logger.LogWarning("Device renew rejected (429); try again later.");
                         return false;
                     }
 
-                    if (IsTransientHttpStatus(code) && attempt < MaxRefreshAttempts)
+                    if (IsTransientHttpStatus(code) && attempt < MaxRenewAttempts)
                     {
                         var err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                         _logger.LogWarning(
-                            "Refresh HTTP {Status} (attempt {Attempt}/{Max}); retrying after delay. {Body}",
+                            "Device renew HTTP {Status} (attempt {Attempt}/{Max}); retrying. {Body}",
                             code,
                             attempt,
-                            MaxRefreshAttempts,
+                            MaxRenewAttempts,
                             err);
-                        await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
+                        await DelayBeforeRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
 
                     var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                    _logger.LogWarning("Refresh failed ({Status}): {Body}", code, body);
+                    _logger.LogWarning("Device renew failed ({Status}): {Body}", code, body);
                     return false;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -125,14 +133,14 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
                 {
-                    if (attempt >= MaxRefreshAttempts)
+                    if (attempt >= MaxRenewAttempts)
                     {
-                        _logger.LogWarning(ex, "Refresh: network/timeout failure after {Max} attempts.", MaxRefreshAttempts);
+                        _logger.LogWarning(ex, "Device renew: network/timeout failure after {Max} attempts.", MaxRenewAttempts);
                         return false;
                     }
 
-                    _logger.LogWarning(ex, "Refresh: transient error (attempt {Attempt}/{Max}).", attempt, MaxRefreshAttempts);
-                    await DelayBeforeRefreshRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
+                    _logger.LogWarning(ex, "Device renew: transient error (attempt {Attempt}/{Max}).", attempt, MaxRenewAttempts);
+                    await DelayBeforeRetryAsync(attempt, cancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -140,28 +148,38 @@ public sealed class AgentSessionRenewalService : IAgentSessionRenewalService
         }
         finally
         {
-            RefreshGate.Release();
+            AgentAuthCoordination.Gate.Release();
         }
     }
 
     private static bool IsTransientHttpStatus(int code) =>
         code is 408 or 425 or 500 or 502 or 503 or 504;
 
-    private static Task DelayBeforeRefreshRetryAsync(int attemptCompleted, CancellationToken cancellationToken)
+    private static Task DelayBeforeRetryAsync(int attemptCompleted, CancellationToken cancellationToken)
     {
-        // 1s, 2s după prima, respectiv a doua încercare eșuată
         var seconds = Math.Clamp(attemptCompleted, 1, 4);
         return Task.Delay(TimeSpan.FromSeconds(seconds), cancellationToken);
     }
 
-    private sealed class RefreshRequestBody
+    private sealed class RenewRequestBody
     {
+        [JsonPropertyName("agentId")]
         public string AgentId { get; set; } = string.Empty;
+
+        [JsonPropertyName("clientInstanceId")]
         public Guid ClientInstanceId { get; set; }
-        public string RefreshToken { get; set; } = string.Empty;
+
+        [JsonPropertyName("timestampUtc")]
+        public DateTime TimestampUtc { get; set; }
+
+        [JsonPropertyName("deviceCredential")]
+        public string DeviceCredential { get; set; } = string.Empty;
+
+        [JsonPropertyName("signature")]
+        public string Signature { get; set; } = string.Empty;
     }
 
-    private sealed class RefreshResponseBody
+    private sealed class RenewResponseBody
     {
         [JsonPropertyName("accessToken")]
         public string AccessToken { get; set; } = string.Empty;

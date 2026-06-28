@@ -15,6 +15,7 @@ public class HeartbeatService : IHeartbeatService
     private readonly IBackendClient _backendClient;
     private readonly IAgentSessionStore _sessionStore;
     private readonly IAgentSessionRenewalService _sessionRenewal;
+    private readonly IAgentDeviceRenewalService _deviceRenewal;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IPrinterDiscoveryService _printerDiscovery;
     private readonly ILogger<HeartbeatService> _logger;
@@ -23,6 +24,7 @@ public class HeartbeatService : IHeartbeatService
         IBackendClient backendClient,
         IAgentSessionStore sessionStore,
         IAgentSessionRenewalService sessionRenewal,
+        IAgentDeviceRenewalService deviceRenewal,
         IAppConfiguration appConfiguration,
         IPrinterDiscoveryService printerDiscovery,
         ILogger<HeartbeatService> logger)
@@ -30,6 +32,7 @@ public class HeartbeatService : IHeartbeatService
         _backendClient = backendClient;
         _sessionStore = sessionStore;
         _sessionRenewal = sessionRenewal;
+        _deviceRenewal = deviceRenewal;
         _appConfiguration = appConfiguration;
         _printerDiscovery = printerDiscovery;
         _logger = logger;
@@ -48,7 +51,7 @@ public class HeartbeatService : IHeartbeatService
             if (string.IsNullOrWhiteSpace(agentId) || string.IsNullOrWhiteSpace(restaurantId))
             {
                 _logger.LogWarning(
-                    "Heartbeat skipped: no session (agentId/restaurantId missing). Enrollment loop will enroll when a valid EnrollmentCode is set in Configurator.");
+                    "Heartbeat skipped: no session (agentId/restaurantId missing). Enrollment loop will recover via device credential or enrollment code.");
                 return;
             }
 
@@ -73,20 +76,36 @@ public class HeartbeatService : IHeartbeatService
             };
 
             var ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
-            if (!ok && !string.IsNullOrWhiteSpace(_sessionStore.RefreshToken))
+            if (!ok)
             {
                 _logger.LogWarning(
-                    "Unauthorized heartbeat for agentId={AgentId}; attempting forced token refresh and a second heartbeat.",
+                    "Unauthorized heartbeat for agentId={AgentId}; attempting refresh, device renew, then retry.",
                     agentId);
+
                 _ = await _sessionRenewal.TryRenewIfAccessExpiredAsync(TimeSpan.FromMinutes(5), cancellationToken, force: true)
                     .ConfigureAwait(false);
                 ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
+
+                if (!ok)
+                {
+                    _ = await _deviceRenewal.TryRenewWithDeviceCredentialAsync(cancellationToken).ConfigureAwait(false);
+                    await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+                    agentId = _sessionStore.AgentId;
+                    restaurantId = _sessionStore.SessionRestaurantId ?? _appConfiguration.RestaurantId;
+                    if (!string.IsNullOrWhiteSpace(agentId) && !string.IsNullOrWhiteSpace(restaurantId))
+                    {
+                        agentInfo.AgentId = agentId;
+                        agentInfo.RestaurantId = restaurantId;
+                        ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
+                    }
+                }
             }
 
             if (!ok)
             {
                 _logger.LogWarning(
-                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Session cleared; enrollment loop will re-enroll when a new EnrollmentCode is set in Manager/Configurator.",
+                    "URS_Metric HeartbeatUnauthorized agentId={AgentId}. Session cleared; enrollment loop will try device renew or re-enroll.",
                     agentId);
                 await _sessionStore.ClearSessionAsync(cancellationToken).ConfigureAwait(false);
                 return;

@@ -56,8 +56,10 @@ try
             services.AddHostedService<PrinterStartupRecoveryHostedService>();
 
             services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
+            services.AddSingleton<IDeviceCredentialStore, DeviceCredentialStore>();
             services.AddSingleton<IRedisRuntimeCredentials, RedisRuntimeCredentialsStore>();
             services.AddSingleton<IAgentSessionRenewalService, AgentSessionRenewalService>();
+            services.AddSingleton<IAgentDeviceRenewalService, AgentDeviceRenewalService>();
             services.AddSingleton<IAgentPrinterConfigurationUpdater, AgentPrinterConfigurationUpdater>();
             services.AddSingleton<IPrinterDiscoveryService, PrinterDiscoveryService>();
             services.AddSingleton<IPrinterMacCapture, PrinterMacCaptureService>();
