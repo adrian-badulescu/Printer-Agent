@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Observability;
 using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Worker.Config;
 
@@ -449,7 +450,16 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         {
             await _redisRuntimeCredentials.LoadAsync(cancellationToken).ConfigureAwait(false);
             if (!forceRefresh && _redisRuntimeCredentials.HasCredentials)
+            {
+                // #region agent log
+                DebugSessionLog.Write("C", "AgentEnrollmentHostedService.cs:TryProvisionRedisCredentialsIfNeededAsync", "skipped redis cred refresh", new
+                {
+                    forceRefresh,
+                    hasCredentials = true,
+                });
+                // #endregion
                 return;
+            }
 
             if (_appConfiguration.HasLegacyRedisPassword)
             {
@@ -498,6 +508,16 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 creds.User,
                 creds.Host,
                 creds.Port);
+
+            // #region agent log
+            DebugSessionLog.Write("C", "AgentEnrollmentHostedService.cs:TryProvisionRedisCredentialsIfNeededAsync", "redis credentials provisioned", new
+            {
+                forceRefresh,
+                user = creds.User,
+                host = creds.Host,
+                port = creds.Port,
+            });
+            // #endregion
         }
         catch (Exception ex)
         {
@@ -662,8 +682,17 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
             _logger.LogInformation("WireGuard provisioning: wrote config to {Path}.", path);
 
+            // #region agent log
+            DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryProvisionWireGuardConfAsync", "wrote wireguard conf", new
+            {
+                path,
+                confChanged = !string.Equals(existing, conf, StringComparison.Ordinal),
+                serviceExists = _wireGuardTunnelManager.ServiceExists(ResolveTunnelServiceName(opt, path) ?? string.Empty),
+            });
+            // #endregion
+
             if (opt.InstallTunnelServiceIfMissing)
-                await TryInstallTunnelServiceAsync(opt, path, cancellationToken).ConfigureAwait(false);
+                await TryInstallTunnelServiceAsync(opt, path, cancellationToken, reinstallIfExists: true).ConfigureAwait(false);
             else
                 TryStartTunnelService(opt, ResolveTunnelServiceName(opt, path));
         }
@@ -673,7 +702,11 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         }
     }
 
-    private async Task TryInstallTunnelServiceAsync(WireGuardOptions opt, string confPath, CancellationToken cancellationToken)
+    private async Task TryInstallTunnelServiceAsync(
+        WireGuardOptions opt,
+        string confPath,
+        CancellationToken cancellationToken,
+        bool reinstallIfExists = false)
     {
         try
         {
@@ -681,11 +714,40 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             if (string.IsNullOrWhiteSpace(serviceName))
                 return;
 
+            var tunnelName = serviceName.StartsWith("WireGuardTunnel$", StringComparison.Ordinal)
+                ? serviceName["WireGuardTunnel$".Length..]
+                : Path.GetFileNameWithoutExtension(confPath);
+
             if (_wireGuardTunnelManager.ServiceExists(serviceName))
             {
-                _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
-                TryStartTunnelService(opt, serviceName);
-                return;
+                if (!reinstallIfExists)
+                {
+                    // #region agent log
+                    DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryInstallTunnelServiceAsync", "tunnel already exists no reinstall", new
+                    {
+                        serviceName,
+                        confPath,
+                    });
+                    // #endregion
+
+                    _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
+                    TryStartTunnelService(opt, serviceName);
+                    return;
+                }
+
+                _logger.LogInformation(
+                    "WireGuard provisioning: reinstalling tunnel service {Service} after .conf update.",
+                    serviceName);
+
+                // #region agent log
+                DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryInstallTunnelServiceAsync", "reinstalling tunnel", new
+                {
+                    serviceName,
+                    confPath,
+                });
+                // #endregion
+
+                await _wireGuardTunnelManager.UninstallTunnelServiceAsync(tunnelName, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogInformation(

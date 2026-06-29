@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Domain;
+using PrinterAgent.Infrastructure.Observability;
 using StackExchange.Redis;
 
 namespace PrinterAgent.Infrastructure.Redis;
@@ -60,13 +61,41 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             consumerName,
             _appConfiguration.RedisConnectionSummary);
 
+        // #region agent log
+        DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "consumer init", new
+        {
+            streamName,
+            groupName,
+            consumerName,
+            conn = _appConfiguration.RedisConnectionSummary,
+        });
+        // #endregion
+
         try
         {
             await db.StreamCreateConsumerGroupAsync(streamName, groupName, "0-0", true);
+            // #region agent log
+            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP create ok", new { streamName, groupName });
+            // #endregion
         }
         catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
         {
-            // Group already exists, which is fine
+            // #region agent log
+            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP busygroup exists", new { streamName, groupName });
+            // #endregion
+        }
+        catch (Exception ex)
+        {
+            // #region agent log
+            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP failed", new
+            {
+                streamName,
+                groupName,
+                exType = ex.GetType().Name,
+                exMessage = ex.Message,
+            });
+            // #endregion
+            throw;
         }
 
         await DrainPendingMessagesAsync(db, streamName, groupName, consumerName, cancellationToken).ConfigureAwait(false);
