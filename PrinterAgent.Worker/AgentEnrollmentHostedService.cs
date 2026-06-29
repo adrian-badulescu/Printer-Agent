@@ -286,7 +286,9 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         _logger.LogInformation("Enrollment succeeded for agentId {AgentId}.", payload.AgentId);
 
         await TryProvisionWireGuardConfAsync(payload.AgentId, cancellationToken).ConfigureAwait(false);
-        await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken).ConfigureAwait(false);
+        // Always re-fetch after enroll: removing the last agent revokes DB + Redis ACL; a stale
+        // redis.credentials.json would otherwise skip GET /redis-credentials and leave DB empty.
+        await TryProvisionRedisCredentialsIfNeededAsync(cancellationToken, forceRefresh: true).ConfigureAwait(false);
         return true;
     }
 
@@ -439,12 +441,14 @@ public sealed class AgentEnrollmentHostedService : IHostedService
         return _appConfiguration.HasLegacyRedisPassword;
     }
 
-    private async Task TryProvisionRedisCredentialsIfNeededAsync(CancellationToken cancellationToken)
+    private async Task TryProvisionRedisCredentialsIfNeededAsync(
+        CancellationToken cancellationToken,
+        bool forceRefresh = false)
     {
         try
         {
             await _redisRuntimeCredentials.LoadAsync(cancellationToken).ConfigureAwait(false);
-            if (_redisRuntimeCredentials.HasCredentials)
+            if (!forceRefresh && _redisRuntimeCredentials.HasCredentials)
                 return;
 
             if (_appConfiguration.HasLegacyRedisPassword)
