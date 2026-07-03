@@ -1,9 +1,8 @@
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
+using PrinterAgent.Application.Networking;
 using PrinterAgent.Domain;
-
-namespace PrinterAgent.Application.UseCases;
 
 public interface IHeartbeatService
 {
@@ -18,6 +17,7 @@ public class HeartbeatService : IHeartbeatService
     private readonly IAgentDeviceRenewalService _deviceRenewal;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IPrinterDiscoveryService _printerDiscovery;
+    private readonly ILocalPrintAuthTokenProvider _localPrintAuthTokenProvider;
     private readonly ILogger<HeartbeatService> _logger;
 
     public HeartbeatService(
@@ -27,6 +27,7 @@ public class HeartbeatService : IHeartbeatService
         IAgentDeviceRenewalService deviceRenewal,
         IAppConfiguration appConfiguration,
         IPrinterDiscoveryService printerDiscovery,
+        ILocalPrintAuthTokenProvider localPrintAuthTokenProvider,
         ILogger<HeartbeatService> logger)
     {
         _backendClient = backendClient;
@@ -35,6 +36,7 @@ public class HeartbeatService : IHeartbeatService
         _deviceRenewal = deviceRenewal;
         _appConfiguration = appConfiguration;
         _printerDiscovery = printerDiscovery;
+        _localPrintAuthTokenProvider = localPrintAuthTokenProvider;
         _logger = logger;
     }
 
@@ -74,6 +76,13 @@ public class HeartbeatService : IHeartbeatService
                 Version = _appConfiguration.Version,
                 Printers = printersForHeartbeat
             };
+
+            if (_appConfiguration.LocalPrintEnabled)
+            {
+                agentInfo.LocalApiBaseUrl = LocalPrintEndpointBuilder.TryBuildBaseUrl(_appConfiguration.LocalPrintPort);
+                agentInfo.LocalPrintApiToken = await _localPrintAuthTokenProvider.GetTokenAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             var ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
             if (!ok)

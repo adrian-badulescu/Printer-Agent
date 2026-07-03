@@ -35,4 +35,7 @@ public interface IAppConfiguration
 
     /// <summary>Timeout TCP la conectarea la imprimantă (secunde); evită blocarea în status Printing minute întregi.</summary>
     int PrinterConnectTimeoutSeconds { get; }
+
+    bool LocalPrintEnabled { get; }
+    int LocalPrintPort { get; }
 }

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Domain;
-using PrinterAgent.Infrastructure.Observability;
 using StackExchange.Redis;
 
 namespace PrinterAgent.Infrastructure.Redis;
@@ -40,12 +39,22 @@ public class RedisStreamConsumer : IRedisStreamConsumer
 
     public async Task StartConsumingAsync(string restaurantId, CancellationToken cancellationToken = default)
     {
-        var agentId = _sessionStore.AgentId;
-        if (string.IsNullOrWhiteSpace(agentId))
+        while (string.IsNullOrWhiteSpace(_sessionStore.AgentId))
         {
-            _logger.LogError("Redis consumer: AgentId is missing in session.");
-            return;
+            _logger.LogWarning("Redis consumer waiting for AgentId in session (enrollment may be in progress).");
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        var agentId = _sessionStore.AgentId!;
 
         var redis = _redisHolder.Get();
         var db = redis.GetDatabase();
@@ -61,40 +70,15 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             consumerName,
             _appConfiguration.RedisConnectionSummary);
 
-        // #region agent log
-        DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "consumer init", new
-        {
-            streamName,
-            groupName,
-            consumerName,
-            conn = _appConfiguration.RedisConnectionSummary,
-        });
-        // #endregion
-
         try
         {
             await db.StreamCreateConsumerGroupAsync(streamName, groupName, "0-0", true);
-            // #region agent log
-            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP create ok", new { streamName, groupName });
-            // #endregion
         }
         catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
         {
-            // #region agent log
-            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP busygroup exists", new { streamName, groupName });
-            // #endregion
         }
         catch (Exception ex)
         {
-            // #region agent log
-            DebugSessionLog.Write("D", "RedisStreamConsumer.cs:StartConsumingAsync", "XGROUP failed", new
-            {
-                streamName,
-                groupName,
-                exType = ex.GetType().Name,
-                exMessage = ex.Message,
-            });
-            // #endregion
             throw;
         }
 
