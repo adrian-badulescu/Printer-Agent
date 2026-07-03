@@ -8,8 +8,9 @@ using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Infrastructure.Http;
-using PrinterAgent.Infrastructure.Persistence;
+using PrinterAgent.Infrastructure.LocalApi;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Printing;
 using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Infrastructure.System;
@@ -50,6 +51,7 @@ try
             services.AddSingleton<IAppConfiguration, AppConfiguration>();
             services.Configure<WireGuardOptions>(hostContext.Configuration.GetSection(WireGuardOptions.SectionName));
             services.Configure<ConnectivityOptions>(hostContext.Configuration.GetSection(ConnectivityOptions.SectionName));
+            services.Configure<LocalPrintOptions>(hostContext.Configuration.GetSection(LocalPrintOptions.SectionName));
 
             // Tunel WireGuard (opțional) înainte de Redis / enroll / AgentWorker
             services.AddHostedService<WireGuardTunnelHostedService>();
@@ -78,7 +80,9 @@ try
 
             // Application
             services.AddTransient<IPrintJobProcessor, PrintJobProcessor>();
+            services.AddTransient<ILocalPrintJobHandler, LocalPrintJobHandler>();
             services.AddTransient<IHeartbeatService, HeartbeatService>();
+            services.AddSingleton<ILocalPrintAuthTokenProvider, LocalPrintAuthTokenProvider>();
 
             // Infrastructure
             services.AddTransient<PrinterAgentAuthHandler>();
@@ -94,6 +98,7 @@ try
 
             services.AddHostedService<AgentEnrollmentHostedService>();
             services.AddHostedService<AgentWorker>();
+            services.AddHostedService<LocalPrintApiHostedService>();
             services.AddHostedService<StartupConnectivityHostedService>();
         })
         .Build();

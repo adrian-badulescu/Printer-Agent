@@ -31,5 +31,9 @@
     "StreamKeyPrefix": "print.jobs",
     "ConsumerGroup": "printer-agents"
   },
-  "Printers": []
+  "Printers": [],
+  "LocalPrint": {
+    "Enabled": true,
+    "Port": 9247
+  }
 }

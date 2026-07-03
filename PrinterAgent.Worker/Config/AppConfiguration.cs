@@ -150,6 +150,11 @@ public class AppConfiguration : IAppConfiguration
     public int PrinterConnectTimeoutSeconds =>
         int.TryParse(MergedString("PrinterConnectTimeoutSeconds"), out var s) ? Math.Clamp(s, 1, 120) : 15;
 
+    public bool LocalPrintEnabled => MergedBool("LocalPrint:Enabled", true);
+
+    public int LocalPrintPort =>
+        int.TryParse(MergedString("LocalPrint:Port"), out var p) ? Math.Clamp(p, 1, 65535) : 9247;
+
     public List<Printer> Printers
     {
         get
