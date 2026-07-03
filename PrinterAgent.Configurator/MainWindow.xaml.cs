@@ -412,7 +412,10 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Salvare eșuată: {ex.Message}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
+            var hint = ex is UnauthorizedAccessException or IOException { InnerException: UnauthorizedAccessException }
+                ? $"{Environment.NewLine}{Environment.NewLine}Rulează Configuratorul ca Administrator, sau în PowerShell (Admin):{Environment.NewLine}  .\\scripts\\Setup-ProgramData.ps1"
+                : string.Empty;
+            MessageBox.Show(this, $"Salvare eșuată: {ex.Message}{hint}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {

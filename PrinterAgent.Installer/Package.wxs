@@ -51,10 +51,19 @@
                   Impersonate="no"
                   Return="ignore" />
 
+    <!-- Configurator runs as standard user; agent.json is often created by LocalSystem first. -->
+    <CustomAction Id="GrantProgramDataPermissions"
+                  Directory="System64Folder"
+                  ExeCommand="cmd.exe /c icacls &quot;%ProgramData%\URSPrinterAgent&quot; /grant *S-1-5-32-545:(OI)(CI)M /T"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
     <InstallExecuteSequence>
       <Custom Action="ForceRemoveUrsService" After="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
       <!-- After files on disk, before ServiceInstall: remove DISABLED/DeleteFlag zombie (no manual scripts). -->
       <Custom Action="RemoveUrsServiceBeforeInstall" Before="InstallServices" Condition="NOT REMOVE" />
+      <Custom Action="GrantProgramDataPermissions" After="InstallFiles" Condition="NOT REMOVE" />
       <Custom Action="EnsureUrsServiceAutoStart" After="InstallServices" Condition="NOT REMOVE" />
       <Custom Action="StartUrsPrinterAgent" After="StartServices" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
@@ -86,6 +95,11 @@
     </StandardDirectory>
 
     <ComponentGroup Id="AgentProgramDataComponents" Directory="AGENTPROGRAMDATAFOLDER">
+      <Component Id="AgentProgramDataFolder" Guid="f3e4d5c6-b7a8-4901-9cde-123456789abc" Directory="AGENTPROGRAMDATAFOLDER" Bitness="always64">
+        <CreateFolder>
+          <util:PermissionEx User="Users" GenericAll="yes" />
+        </CreateFolder>
+      </Component>
       <Component Id="AgentProgramDataLogsFolder" Guid="a1f2e3d4-c5b6-4789-a012-3456789abcde" Directory="AGENTPROGRAMDATALOGS" Bitness="always64">
         <CreateFolder>
           <util:PermissionEx User="Users" GenericAll="yes" />
