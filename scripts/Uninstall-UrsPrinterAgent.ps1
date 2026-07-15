@@ -2,6 +2,8 @@
 # Run elevated. Example:
 #   .\Uninstall-UrsPrinterAgent.ps1
 #
+# Full cleanup (service + WireGuard tunnel + ProgramData): .\Uninstall-UrsPrinterAgent-Full.ps1
+#
 # Reinstall: .\Install-UrsPrinterAgent.ps1 -BinaryPath "...\PrinterAgent.Worker.exe"
 
 param(
