@@ -26,7 +26,7 @@ jobs:
           if ($sdk -notmatch '10\.') { throw "No .NET 10 SDK found.`n$sdk" }
 
       - name: Build solution
-        run: dotnet build PrinterAgent.slnx -c Release --no-restore false
+        run: dotnet build PrinterAgent.slnx -c Release
 
       - name: Test
         run: dotnet test PrinterAgent.Infrastructure.Tests/PrinterAgent.Infrastructure.Tests.csproj -c Release --no-build
