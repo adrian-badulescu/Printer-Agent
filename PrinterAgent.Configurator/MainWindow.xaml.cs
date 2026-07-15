@@ -253,10 +253,47 @@ public partial class MainWindow
 
         if (_step == 2)
         {
-            SelectedHostText.Text = _selectedHost != null
-                ? $"Adresă selectată: {_selectedHost} (port {PortBox.Text.Trim()})"
-                : "Nicio adresă selectată.";
+            if (string.IsNullOrWhiteSpace(IpAddressBox.Text) && _selectedHost != null)
+                IpAddressBox.Text = _selectedHost.ToString();
+
+            SelectedHostText.Text = !string.IsNullOrWhiteSpace(IpAddressBox.Text)
+                ? $"Adresă: {IpAddressBox.Text.Trim()} (port {PortBox.Text.Trim()})"
+                : _selectedHost != null
+                    ? $"Adresă selectată: {_selectedHost} (port {PortBox.Text.Trim()})"
+                    : "Introduceți adresa IP (ex. 127.0.0.1 pentru FiscalNet).";
             RefreshPrinterIdFromNameIfNeeded();
+            ApplyPrinterTypeUi();
+        }
+    }
+
+    private void PrinterTypeCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyPrinterTypeUi();
+
+    private bool IsFiscalNetSelected()
+    {
+        if (PrinterTypeCombo.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tag &&
+            string.Equals(tag, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    private void ApplyPrinterTypeUi()
+    {
+        var fiscal = IsFiscalNetSelected();
+        FiscalSettingsPanel.Visibility = fiscal ? Visibility.Visible : Visibility.Collapsed;
+        PortLabel.Content = fiscal ? "Port HTTP" : "Port TCP";
+
+        if (fiscal)
+        {
+            if (string.IsNullOrWhiteSpace(IpAddressBox.Text))
+                IpAddressBox.Text = "127.0.0.1";
+            if (PortBox.Text.Trim() is "" or "9100")
+                PortBox.Text = "65400";
+        }
+        else if (PortBox.Text.Trim() == "65400")
+        {
+            PortBox.Text = "9100";
         }
     }
 
@@ -358,9 +395,19 @@ public partial class MainWindow
             return;
         }
 
-        if (_selectedHost == null)
+        if (_selectedHost == null && !IsFiscalNetSelected())
         {
             MessageBox.Show(this, "Lipsește adresa imprimantei.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var ipText = IpAddressBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(ipText))
+            ipText = _selectedHost?.ToString() ?? string.Empty;
+
+        if (!IPAddress.TryParse(ipText, out var ipAddress))
+        {
+            MessageBox.Show(this, "Adresă IP invalidă.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -391,13 +438,32 @@ public partial class MainWindow
                 }
             }
 
+            var printerType = PrinterTypes.EscPos;
+            if (PrinterTypeCombo.SelectedItem is ComboBoxItem typeItem && typeItem.Tag is string typeTag)
+                printerType = typeTag;
+
             var entry = new JsonObject
             {
                 ["id"] = pid,
                 ["name"] = name,
-                ["ipAddress"] = _selectedHost.ToString(),
-                ["port"] = port
+                ["ipAddress"] = ipAddress.ToString(),
+                ["port"] = port,
+                ["type"] = printerType
             };
+
+            if (string.Equals(printerType, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase))
+            {
+                _ = int.TryParse(FiscalVatGroupBox.Text.Trim(), out var vatGroup);
+                _ = int.TryParse(FiscalDepartmentBox.Text.Trim(), out var department);
+                _ = int.TryParse(FiscalTimeoutBox.Text.Trim(), out var timeoutMs);
+                entry["fiscal"] = new JsonObject
+                {
+                    ["defaultVatGroup"] = vatGroup is >= 1 and <= 5 ? vatGroup : 1,
+                    ["defaultDepartment"] = department > 0 ? department : 1,
+                    ["timeoutMs"] = timeoutMs >= 5000 ? timeoutMs : 120_000
+                };
+            }
+
             MergePreservedPrinterMetadata(replaced, entry);
             printers.Add(entry);
 

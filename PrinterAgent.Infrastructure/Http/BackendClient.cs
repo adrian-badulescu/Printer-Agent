@@ -108,9 +108,19 @@ public class BackendClient : IBackendClient
         return await response.Content.ReadFromJsonAsync<AgentEnrollResponse>(cancellationToken: cancellationToken);
     }
 
-    public async Task UpdateJobStatusAsync(string jobId, PrintJobStatus status, CancellationToken cancellationToken = default)
+    public async Task UpdateJobStatusAsync(
+        string jobId,
+        PrintJobStatus status,
+        string? errorCode = null,
+        string? deviceErrorCode = null,
+        CancellationToken cancellationToken = default)
     {
-        var request = new { Status = status.ToString() };
+        var request = new
+        {
+            Status = status.ToString(),
+            ErrorCode = errorCode,
+            DeviceErrorCode = deviceErrorCode,
+        };
         const int maxAttempts = 4;
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)

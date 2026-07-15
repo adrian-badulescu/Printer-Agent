@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace PrinterAgent.Domain;
 
 public class Printer
@@ -16,4 +18,10 @@ public class Printer
 
     /// <summary>Optional short note for heartbeat/JSON (e.g. discovery reason).</summary>
     public string? LastDiscoveryNote { get; set; }
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = PrinterTypes.EscPos;
+
+    [JsonPropertyName("fiscal")]
+    public FiscalPrinterSettings? Fiscal { get; set; }
 }

@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
+using PrinterAgent.Application.Networking;
 using PrinterAgent.Domain;
 
 namespace PrinterAgent.Application.UseCases;
@@ -18,6 +19,8 @@ public class HeartbeatService : IHeartbeatService
     private readonly IAgentDeviceRenewalService _deviceRenewal;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IPrinterDiscoveryService _printerDiscovery;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILocalPrintAuthTokenProvider _localPrintAuthTokenProvider;
     private readonly ILogger<HeartbeatService> _logger;
 
     public HeartbeatService(
@@ -27,6 +30,8 @@ public class HeartbeatService : IHeartbeatService
         IAgentDeviceRenewalService deviceRenewal,
         IAppConfiguration appConfiguration,
         IPrinterDiscoveryService printerDiscovery,
+        IHttpClientFactory httpClientFactory,
+        ILocalPrintAuthTokenProvider localPrintAuthTokenProvider,
         ILogger<HeartbeatService> logger)
     {
         _backendClient = backendClient;
@@ -35,6 +40,8 @@ public class HeartbeatService : IHeartbeatService
         _deviceRenewal = deviceRenewal;
         _appConfiguration = appConfiguration;
         _printerDiscovery = printerDiscovery;
+        _httpClientFactory = httpClientFactory;
+        _localPrintAuthTokenProvider = localPrintAuthTokenProvider;
         _logger = logger;
     }
 
@@ -74,6 +81,13 @@ public class HeartbeatService : IHeartbeatService
                 Version = _appConfiguration.Version,
                 Printers = printersForHeartbeat
             };
+
+            if (_appConfiguration.LocalPrintEnabled)
+            {
+                agentInfo.LocalApiBaseUrl = LocalPrintEndpointBuilder.TryBuildBaseUrl(_appConfiguration.LocalPrintPort);
+                agentInfo.LocalPrintApiToken = await _localPrintAuthTokenProvider.GetTokenAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
             var ok = await _backendClient.SendHeartbeatAsync(agentInfo, cancellationToken).ConfigureAwait(false);
             if (!ok)
@@ -119,9 +133,15 @@ public class HeartbeatService : IHeartbeatService
         }
     }
 
-    private static async Task<bool> IsPrinterReachableAsync(Printer printer, CancellationToken cancellationToken)
+    private async Task<bool> IsPrinterReachableAsync(Printer printer, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(printer.IpAddress) || printer.Port <= 0)
+        if (string.IsNullOrWhiteSpace(printer.IpAddress))
+            return false;
+
+        if (PrinterTypes.IsFiscalNet(printer))
+            return await IsFiscalNetReachableAsync(printer, cancellationToken).ConfigureAwait(false);
+
+        if (printer.Port <= 0)
             return false;
 
         try
@@ -131,6 +151,34 @@ public class HeartbeatService : IHeartbeatService
             cts.CancelAfter(TimeSpan.FromSeconds(2));
             await client.ConnectAsync(printer.IpAddress, printer.Port, cts.Token).ConfigureAwait(false);
             return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> IsFiscalNetReachableAsync(Printer printer, CancellationToken cancellationToken)
+    {
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        var scheme = fiscal.UseHttps ? "https" : "http";
+        var port = printer.Port > 0 ? printer.Port : 65400;
+        var host = printer.IpAddress.Trim();
+        var url = $"{scheme}://{host}:{port}/api/Receipt";
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient("FiscalNet");
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+            using var request = new HttpRequestMessage(HttpMethod.Options, url);
+            using var response = await client.SendAsync(request, cts.Token).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode || (int)response.StatusCode == 405)
+                return true;
+
+            using var getRequest = new HttpRequestMessage(HttpMethod.Get, url);
+            using var getResponse = await client.SendAsync(getRequest, cts.Token).ConfigureAwait(false);
+            return getResponse.IsSuccessStatusCode || (int)getResponse.StatusCode == 405;
         }
         catch
         {

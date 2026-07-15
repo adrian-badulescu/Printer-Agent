@@ -8,9 +8,11 @@ using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Infrastructure.Http;
+using PrinterAgent.Infrastructure.LocalApi;
 using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Networking;
 using PrinterAgent.Infrastructure.Printing;
+using PrinterAgent.Infrastructure.Printing.Fiscal;
 using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Infrastructure.System;
 using PrinterAgent.Worker;
@@ -50,6 +52,7 @@ try
             services.AddSingleton<IAppConfiguration, AppConfiguration>();
             services.Configure<WireGuardOptions>(hostContext.Configuration.GetSection(WireGuardOptions.SectionName));
             services.Configure<ConnectivityOptions>(hostContext.Configuration.GetSection(ConnectivityOptions.SectionName));
+            services.Configure<LocalPrintOptions>(hostContext.Configuration.GetSection(LocalPrintOptions.SectionName));
 
             // Tunel WireGuard (opțional) înainte de Redis / enroll / AgentWorker
             services.AddHostedService<WireGuardTunnelHostedService>();
@@ -76,13 +79,23 @@ try
                 client.Timeout = TimeSpan.FromMinutes(2);
             });
 
+            services.AddHttpClient("FiscalNet", client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(3);
+            });
+
             // Application
             services.AddTransient<IPrintJobProcessor, PrintJobProcessor>();
+            services.AddTransient<ILocalPrintJobHandler, LocalPrintJobHandler>();
             services.AddTransient<IHeartbeatService, HeartbeatService>();
+            services.AddSingleton<ILocalPrintAuthTokenProvider, LocalPrintAuthTokenProvider>();
 
             // Infrastructure
             services.AddTransient<PrinterAgentAuthHandler>();
-            services.AddTransient<IPrinterService, EscPosPrinterService>();
+            services.AddTransient<EscPosPrinterService>();
+            services.AddTransient<FiscalNetHttpClient>();
+            services.AddTransient<FiscalNetPrinterService>();
+            services.AddSingleton<IPrinterServiceFactory, PrinterServiceFactory>();
             services.AddTransient<IUpdateService, UpdateService>();
             services.AddHttpClient<IBackendClient, BackendClient>().AddHttpMessageHandler<PrinterAgentAuthHandler>();
 
@@ -94,6 +107,7 @@ try
 
             services.AddHostedService<AgentEnrollmentHostedService>();
             services.AddHostedService<AgentWorker>();
+            services.AddHostedService<LocalPrintApiHostedService>();
             services.AddHostedService<StartupConnectivityHostedService>();
         })
         .Build();

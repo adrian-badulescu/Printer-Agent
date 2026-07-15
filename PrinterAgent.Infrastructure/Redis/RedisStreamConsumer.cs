@@ -232,7 +232,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
     {
         try
         {
-            await _backendClient.UpdateJobStatusAsync(jobId, PrintJobStatus.Failed, cancellationToken).ConfigureAwait(false);
+            await _backendClient.UpdateJobStatusAsync(jobId, PrintJobStatus.Failed, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

@@ -1,0 +1,99 @@
+using System.Globalization;
+using System.Text;
+using PrinterAgent.Domain;
+
+namespace PrinterAgent.Infrastructure.Printing.Fiscal;
+
+public static class FiscalNetReceiptLineBuilder
+{
+    private const int MaxNameLength = 48;
+
+    public static string[] Build(PrintJob job, Printer printer)
+    {
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        var defaultVat = ClampVatGroup(fiscal.DefaultVatGroup);
+        var defaultDept = fiscal.DefaultDepartment > 0 ? fiscal.DefaultDepartment : 1;
+        var lines = new List<string>();
+
+        var customer = job.Payload.CustomerFiscalCode?.Trim();
+        if (!string.IsNullOrWhiteSpace(customer))
+            lines.Add($"CF^{Sanitize(customer)}");
+
+        foreach (var item in job.Payload.Items)
+        {
+            var qty = item.Quantity <= 0 ? 1 : item.Quantity;
+            var unit = RoundMoney(item.UnitPrice ?? item.Price);
+            var name = Truncate(Sanitize(item.Name), MaxNameLength);
+            var vatGroup = item.VatGroup is >= 1 and <= 5 ? item.VatGroup.Value : defaultVat;
+            var department = item.Department ?? defaultDept;
+            lines.Add($"S^{name}^{FormatPrice(unit)}^{FormatQuantity(qty)}^buc^{vatGroup}^{department}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(job.Payload.FooterMessage))
+            lines.Add($"TL^{Truncate(Sanitize(job.Payload.FooterMessage), MaxNameLength)}");
+
+        foreach (var paymentLine in BuildPaymentLines(job))
+            lines.Add(paymentLine);
+
+        return lines.ToArray();
+    }
+
+    internal static IEnumerable<string> BuildPaymentLines(PrintJob job)
+    {
+        var computedTotal = job.Payload.Items.Sum(i =>
+        {
+            var qty = i.Quantity <= 0 ? 1 : i.Quantity;
+            var unit = RoundMoney(i.UnitPrice ?? i.Price);
+            return unit * qty;
+        });
+
+        var total = computedTotal > 0
+            ? computedTotal
+            : RoundMoney(job.Payload.FinalTotal
+                ?? job.Payload.SubTotal
+                ?? 0m);
+
+        if (total <= 0)
+            yield break;
+
+        var (type, amount) = MapPayment(job.Payload.PaymentMethod, total);
+        yield return $"P^{type}^{FormatPrice(amount)}";
+    }
+
+    internal static (int Type, decimal Amount) MapPayment(string? paymentMethod, decimal total)
+    {
+        var method = (paymentMethod ?? "cash").Trim().ToLowerInvariant();
+        var type = method switch
+        {
+            "cash" => 1,
+            "card" or "credit" => 2,
+            "ticket" => 4,
+            _ => 1,
+        };
+        return (type, total);
+    }
+
+    internal static int FormatPrice(decimal amount) =>
+        (int)Math.Round(RoundMoney(amount) * 100m, MidpointRounding.AwayFromZero);
+
+    internal static decimal RoundMoney(decimal amount) =>
+        Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+
+    internal static int FormatQuantity(int quantity) =>
+        quantity * 1000;
+
+    internal static int ClampVatGroup(int value) =>
+        value is >= 1 and <= 5 ? value : 1;
+
+    internal static string Sanitize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var chars = value.Where(c => c is >= ' ' and <= '~' && c != '^').ToArray();
+        return new string(chars).Trim();
+    }
+
+    internal static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max];
+}

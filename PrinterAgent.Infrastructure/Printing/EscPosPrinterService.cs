@@ -23,7 +23,7 @@ public class EscPosPrinterService : IPrinterService
         _macCapture = macCapture;
     }
 
-    public async Task<bool> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default)
+    public async Task<PrintJobResult> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default)
     {
         var maxAttempts = _appConfiguration.MaxPrintRetryAttempts;
         var baseDelayMs = _appConfiguration.PrintRetryBaseDelayMs;
@@ -61,7 +61,7 @@ public class EscPosPrinterService : IPrinterService
                 await _macCapture.TryPersistMacAfterSuccessfulPrintAsync(printer.Id, printer.IpAddress, cancellationToken)
                     .ConfigureAwait(false);
 
-                return true;
+                return PrintJobResult.Ok();
             }
             catch (OperationCanceledException)
             {
@@ -77,11 +77,11 @@ public class EscPosPrinterService : IPrinterService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to print job {JobId} to printer {PrinterName} after {Attempts} attempts.", job.RedisMessageId, printer.Name, maxAttempts);
-                return false;
+                return PrintJobResult.Failed("PRINT_FAILED");
             }
         }
 
-        return false;
+        return PrintJobResult.Failed("PRINT_FAILED");
     }
 
     private static byte[] RenderReceipt(PrintJob job)

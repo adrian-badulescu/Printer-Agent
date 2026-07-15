@@ -5,4 +5,6 @@
   <Project Path="PrinterAgent.Infrastructure/PrinterAgent.Infrastructure.csproj" />
   <Project Path="PrinterAgent.Installer/PrinterAgent.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
   <Project Path="PrinterAgent.Worker/PrinterAgent.Worker.csproj" />
+  <Project Path="PrinterAgent.Infrastructure.Tests/PrinterAgent.Infrastructure.Tests.csproj" />
+  <Project Path="PrinterAgent.FiscalNetStub/PrinterAgent.FiscalNetStub.csproj" />
 </Solution>

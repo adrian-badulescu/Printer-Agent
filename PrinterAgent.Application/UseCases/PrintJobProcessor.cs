@@ -13,7 +13,7 @@ public interface IPrintJobProcessor
 
 public class PrintJobProcessor : IPrintJobProcessor
 {
-    private readonly IPrinterService _printerService;
+    private readonly IPrinterServiceFactory _printerServiceFactory;
     private readonly IBackendClient _backendClient;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IAgentSessionStore _sessionStore;
@@ -22,7 +22,7 @@ public class PrintJobProcessor : IPrintJobProcessor
     private readonly ILogger<PrintJobProcessor> _logger;
 
     public PrintJobProcessor(
-        IPrinterService printerService,
+        IPrinterServiceFactory printerServiceFactory,
         IBackendClient backendClient,
         IAppConfiguration appConfiguration,
         IAgentSessionStore sessionStore,
@@ -30,7 +30,7 @@ public class PrintJobProcessor : IPrintJobProcessor
         IConfiguration configuration,
         ILogger<PrintJobProcessor> logger)
     {
-        _printerService = printerService;
+        _printerServiceFactory = printerServiceFactory;
         _backendClient = backendClient;
         _appConfiguration = appConfiguration;
         _sessionStore = sessionStore;
@@ -48,12 +48,12 @@ public class PrintJobProcessor : IPrintJobProcessor
                 "Job {JobId} restaurant mismatch: job={JobRestaurant} agent={AgentRestaurant}.",
                 job.RedisMessageId, job.RestaurantId, effectiveRestaurant);
             AgentMetrics.PrintFailures.Add(1);
-            await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Failed, cancellationToken);
+            await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Failed, cancellationToken: cancellationToken);
             AgentMetrics.JobsProcessed.Add(1);
             return;
         }
 
-        await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Printing, cancellationToken);
+        await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Printing, cancellationToken: cancellationToken);
 
         _logger.LogInformation(
             "Print job {JobId}: payloadType={PayloadType} requested printerId={RequestedPrinterId}.",
@@ -73,12 +73,14 @@ public class PrintJobProcessor : IPrintJobProcessor
                 job.PrinterId,
                 string.Join(", ", configured));
             AgentMetrics.PrintFailures.Add(1);
-            await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Failed, cancellationToken);
+            await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, PrintJobStatus.Failed, cancellationToken: cancellationToken);
             AgentMetrics.JobsProcessed.Add(1);
             return;
         }
 
-        var success = await _printerService.PrintAsync(printer, job, cancellationToken);
+        var printerService = _printerServiceFactory.Resolve(printer);
+        var result = await printerService.PrintAsync(printer, job, cancellationToken);
+        var success = result.Success;
         if (!success)
         {
             var recovery = await _printerDiscovery.TryRecoverAfterPrintFailureAsync(printer, cancellationToken)
@@ -91,7 +93,9 @@ public class PrintJobProcessor : IPrintJobProcessor
                 var retryPrinter = _appConfiguration.Printers.FirstOrDefault(p =>
                                       string.Equals(p.Id, job.PrinterId, StringComparison.OrdinalIgnoreCase))
                                   ?? recovery.Printer;
-                success = await _printerService.PrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+                var retryService = _printerServiceFactory.Resolve(retryPrinter);
+                result = await retryService.PrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+                success = result.Success;
             }
         }
 
@@ -100,7 +104,12 @@ public class PrintJobProcessor : IPrintJobProcessor
         if (!success)
             AgentMetrics.PrintFailures.Add(1);
 
-        await _backendClient.UpdateJobStatusAsync(job.RedisMessageId, finalStatus, cancellationToken);
+        await _backendClient.UpdateJobStatusAsync(
+            job.RedisMessageId,
+            finalStatus,
+            result.ErrorCode,
+            result.DeviceErrorCode,
+            cancellationToken);
         AgentMetrics.JobsProcessed.Add(1);
     }
 }

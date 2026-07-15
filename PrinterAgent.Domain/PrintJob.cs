@@ -43,6 +43,12 @@ public class PrintJobPayload
     [JsonPropertyName("paymentMethod")]
     public string? PaymentMethod { get; set; }
 
+    [JsonPropertyName("customerFiscalCode")]
+    public string? CustomerFiscalCode { get; set; }
+
+    [JsonPropertyName("footerMessage")]
+    public string? FooterMessage { get; set; }
+
     [JsonPropertyName("closedAtUtc")]
     public DateTime? ClosedAtUtc { get; set; }
 
@@ -64,4 +70,10 @@ public class PrintJobItem
 
     [JsonPropertyName("unitPrice")]
     public decimal? UnitPrice { get; set; }
+
+    [JsonPropertyName("vatGroup")]
+    public int? VatGroup { get; set; }
+
+    [JsonPropertyName("department")]
+    public int? Department { get; set; }
 }

@@ -1,0 +1,32 @@
+name: Printer Agent CI
+
+on:
+  push:
+    branches: [main, master, 'feature/**']
+  pull_request:
+    branches: [main, master, 'feature/**']
+  workflow_dispatch:
+
+concurrency:
+  group: printer-agent-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify .NET 10 SDK
+        shell: powershell
+        run: |
+          $sdk = dotnet --list-sdks 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet CLI not on PATH.' }
+          if ($sdk -notmatch '10\.') { throw "No .NET 10 SDK found.`n$sdk" }
+
+      - name: Build solution
+        run: dotnet build PrinterAgent.slnx -c Release --no-restore false
+
+      - name: Test
+        run: dotnet test PrinterAgent.Infrastructure.Tests/PrinterAgent.Infrastructure.Tests.csproj -c Release --no-build

@@ -159,11 +159,32 @@
                    Padding="8"
                    Margin="0,0,0,8"
                    TextChanged="PrinterIdBox_OnTextChanged" />
+          <Label x:Name="PrinterTypeLabel" Content="Tip imprimantă" Target="{Binding ElementName=PrinterTypeCombo}" />
+          <ComboBox x:Name="PrinterTypeCombo"
+                    Margin="0,0,0,8"
+                    SelectionChanged="PrinterTypeCombo_OnSelectionChanged">
+            <ComboBoxItem Content="Termică ESC/POS" Tag="escpos" IsSelected="True" />
+            <ComboBoxItem Content="FiscalNet (casă de marcat)" Tag="fiscalnet" />
+          </ComboBox>
+          <Label x:Name="IpAddressLabel" Content="Adresă IP" Target="{Binding ElementName=IpAddressBox}" />
+          <TextBox x:Name="IpAddressBox"
+                   Padding="8"
+                   Margin="0,0,0,8" />
           <Label x:Name="PortLabel" Content="Port TCP" Target="{Binding ElementName=PortBox}" />
           <TextBox x:Name="PortBox"
                    Padding="8"
                    Margin="0,0,0,12"
                    Text="9100" />
+          <StackPanel x:Name="FiscalSettingsPanel" Visibility="Collapsed" Margin="0,0,0,12">
+            <Label Content="Grupă TVA default (1–5)" Target="{Binding ElementName=FiscalVatGroupBox}" />
+            <TextBox x:Name="FiscalVatGroupBox" Text="1" Padding="8" Margin="0,0,0,8" />
+            <Label Content="Departament default" Target="{Binding ElementName=FiscalDepartmentBox}" />
+            <TextBox x:Name="FiscalDepartmentBox" Text="1" Padding="8" Margin="0,0,0,8" />
+            <Label Content="Timeout (ms)" Target="{Binding ElementName=FiscalTimeoutBox}" />
+            <TextBox x:Name="FiscalTimeoutBox" Text="120000" Padding="8" Margin="0,0,0,8" />
+            <TextBlock TextWrapping="Wrap" Foreground="#666" FontSize="12"
+                       Text="FiscalNet: driverul trebuie instalat pe același PC (de obicei 127.0.0.1:65400)." />
+          </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
             <Button x:Name="TestPrintButton"
                     Content="Test print"

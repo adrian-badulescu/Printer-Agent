@@ -4,5 +4,5 @@ namespace PrinterAgent.Application.Interfaces;
 
 public interface IPrinterService
 {
-    Task<bool> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default);
+    Task<PrintJobResult> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default);
 }
