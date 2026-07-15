@@ -266,8 +266,12 @@ public partial class MainWindow
         }
     }
 
-    private void PrinterTypeCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+    private void PrinterTypeCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+            return;
         ApplyPrinterTypeUi();
+    }
 
     private bool IsFiscalNetSelected()
     {
@@ -280,6 +284,10 @@ public partial class MainWindow
 
     private void ApplyPrinterTypeUi()
     {
+        // SelectionChanged can fire during InitializeComponent before later named controls exist.
+        if (FiscalSettingsPanel is null || PortLabel is null || IpAddressBox is null || PortBox is null)
+            return;
+
         var fiscal = IsFiscalNetSelected();
         FiscalSettingsPanel.Visibility = fiscal ? Visibility.Visible : Visibility.Collapsed;
         PortLabel.Content = fiscal ? "Port HTTP" : "Port TCP";
