@@ -57,6 +57,7 @@ try
             // Tunel WireGuard (opțional) înainte de Redis / enroll / AgentWorker
             services.AddHostedService<WireGuardTunnelHostedService>();
             services.AddHostedService<PrinterStartupRecoveryHostedService>();
+            services.AddHostedService<AgentConfigurationReloadHostedService>();
 
             services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
             services.AddSingleton<IDeviceCredentialStore, DeviceCredentialStore>();
@@ -95,6 +96,8 @@ try
             services.AddTransient<EscPosPrinterService>();
             services.AddTransient<FiscalNetHttpClient>();
             services.AddTransient<FiscalNetPrinterService>();
+            services.AddTransient<IFiscalCommandHandler, FiscalNetCommandHandler>();
+            services.AddSingleton<IFiscalCommandRouter, FiscalCommandRouter>();
             services.AddSingleton<IPrinterServiceFactory, PrinterServiceFactory>();
             services.AddTransient<IUpdateService, UpdateService>();
             services.AddHttpClient<IBackendClient, BackendClient>().AddHttpMessageHandler<PrinterAgentAuthHandler>();
@@ -176,6 +179,7 @@ static void EnsureProgramDataAgentJsonForConfiguration(string bundledAgentJson, 
 {
     try
     {
+        AgentProgramDataAccess.EnsureWritable();
         Directory.CreateDirectory(Path.GetDirectoryName(programDataAgentJson)!);
         if (File.Exists(programDataAgentJson))
             return;

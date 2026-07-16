@@ -23,14 +23,18 @@ public sealed class PrinterListRow
 
 public partial class MainWindow
 {
-    private static readonly Regex EnrollmentCodeRegex = new("^[A-Za-z0-9]{6,32}$", RegexOptions.Compiled);
+    private static readonly Regex EnrollmentCodeRegex = new("^[A-Za-z0-9]{10}$", RegexOptions.Compiled);
+    private static readonly TimeSpan SessionExpirySkew = TimeSpan.FromMinutes(5);
     private int _step;
+    private bool _skipEnrollmentMode;
     private readonly AgentConfigurationStore _store = new();
+    private readonly AgentSessionProbe _sessionProbe = new();
     private readonly Port9100Scanner _scanner = new();
     private readonly TestPrintService _testPrint = new();
     private CancellationTokenSource? _scanCts;
     private bool _printerIdManual;
     private bool _printerIdProgrammaticChange;
+    private bool _printerTypeProgrammaticChange;
     private IPAddress? _selectedHost;
 
     public ObservableCollection<PrinterListRow> ExistingPrinters { get; } = new();
@@ -91,6 +95,13 @@ public partial class MainWindow
             NicCombo.SelectedItem = preferred;
 
         ReloadExistingPrintersList();
+
+        if (_sessionProbe.HasUsableSession(SessionExpirySkew) && ExistingPrinters.Count > 0)
+        {
+            _skipEnrollmentMode = true;
+            _step = 1;
+        }
+
         UpdateStepUi();
     }
 
@@ -216,18 +227,49 @@ public partial class MainWindow
 
         Step2TitleText.Text = UiStrings.Get("Step2_Title");
         Step2DescriptionText.Text = UiStrings.Get("Step2_Description");
+        SetupTypeLabel.Text = UiStrings.Get("SetupType_Label");
+        SetupTypeEscPosRadio.Content = UiStrings.Get("SetupType_EscPos");
+        SetupTypeFiscalNetRadio.Content = UiStrings.Get("SetupType_FiscalNet");
         NicLabel.Content = UiStrings.Get("Nic_Label");
         ScanConsentText.Text = UiStrings.Get("ScanConsent_Text");
         FoundHostsLabel.Content = UiStrings.Get("FoundHosts_Label");
 
         Step3TitleText.Text = UiStrings.Get("Step3_Title");
         PrinterNameLabel.Content = UiStrings.Get("PrinterName_Label");
-        PrinterIdLabel.Content = UiStrings.Get("PrinterId_Label");
+        PrinterTypeLabel.Content = UiStrings.Get("PrinterType_Label");
+        PrinterIdHintText.Text = UiStrings.Get("PrinterId_Hint");
+        if (FiscalNetHintText != null)
+            FiscalNetHintText.Text = UiStrings.Get("FiscalNet_Hint");
+        if (IpAddressLabel != null)
+            IpAddressLabel.Content = UiStrings.Get("IpAddress_Label");
+        if (FiscalVatGroupLabel != null)
+            FiscalVatGroupLabel.Content = UiStrings.Get("FiscalVatGroup_Label");
+        if (FiscalDepartmentLabel != null)
+            FiscalDepartmentLabel.Content = UiStrings.Get("FiscalDepartment_Label");
+        if (FiscalTimeoutLabel != null)
+            FiscalTimeoutLabel.Content = UiStrings.Get("FiscalTimeout_Label");
         PortLabel.Content = UiStrings.Get("Port_Label");
         SaveHintText.Text = UiStrings.Get("SaveHintText");
+        ApplyPrinterTypeComboLabels();
 
         Step4TitleText.Text = UiStrings.Get("Step4_Title");
         DoneHintText.Text = UiStrings.Get("DoneHintText");
+    }
+
+    private void ApplyPrinterTypeComboLabels()
+    {
+        if (PrinterTypeCombo is null)
+            return;
+
+        foreach (var item in PrinterTypeCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (item.Tag is string tag)
+            {
+                item.Content = string.Equals(tag, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase)
+                    ? UiStrings.Get("PrinterType_FiscalNet")
+                    : UiStrings.Get("PrinterType_EscPos");
+            }
+        }
     }
 
     private void UpdateStepUi()
@@ -237,39 +279,127 @@ public partial class MainWindow
         StepPrinterPanel.Visibility = _step == 2 ? Visibility.Visible : Visibility.Collapsed;
         StepDonePanel.Visibility = _step == 3 ? Visibility.Visible : Visibility.Collapsed;
 
-        BackButton.IsEnabled = _step is > 0 and < 3;
+        BackButton.IsEnabled = _step is > 0 and < 3 && !(_step == 1 && _skipEnrollmentMode);
         NextButton.IsEnabled = true;
         NextButton.Content = _step == 2 ? UiStrings.Get("SaveButton") : _step == 3 ? UiStrings.Get("CloseButton") : UiStrings.Get("NextButton");
         NextButton.IsDefault = _step != 3;
 
         FooterStatusText.Text = _step switch
         {
+            0 when ExistingPrinters.Count > 0 && !_sessionProbe.HasUsableSession(SessionExpirySkew)
+                => UiStrings.Get("Footer_Step1_NotEnrolled"),
             0 => UiStrings.Get("Footer_Step1"),
-            1 => UiStrings.Get("Footer_Step2"),
+            1 when _skipEnrollmentMode => IsFiscalNetSetupSelected()
+                ? UiStrings.Get("Footer_Step2_FiscalNet_AddPrinter")
+                : UiStrings.Get("Footer_Step2_AddPrinter"),
+            1 => IsFiscalNetSetupSelected()
+                ? UiStrings.Get("Footer_Step2_FiscalNet")
+                : UiStrings.Get("Footer_Step2"),
             2 => UiStrings.Get("Footer_Step3"),
             3 => UiStrings.Get("Footer_Step4"),
             _ => ""
         };
 
+        if (_step == 1)
+            ApplySetupTypeUi();
+
         if (_step == 2)
         {
+            SyncPrinterTypeComboFromSetup();
             if (string.IsNullOrWhiteSpace(IpAddressBox.Text) && _selectedHost != null)
                 IpAddressBox.Text = _selectedHost.ToString();
 
             SelectedHostText.Text = !string.IsNullOrWhiteSpace(IpAddressBox.Text)
-                ? $"Adresă: {IpAddressBox.Text.Trim()} (port {PortBox.Text.Trim()})"
+                ? UiStrings.Format("SelectedHost_WithPort", IpAddressBox.Text.Trim(), PortBox.Text.Trim())
                 : _selectedHost != null
-                    ? $"Adresă selectată: {_selectedHost} (port {PortBox.Text.Trim()})"
-                    : "Introduceți adresa IP (ex. 127.0.0.1 pentru FiscalNet).";
+                    ? UiStrings.Format("SelectedHost_FromScan", _selectedHost.ToString(), PortBox.Text.Trim())
+                    : UiStrings.Get("SelectedHost_FiscalNetManual");
+            PrinterIdLabel.Content = IsFiscalNetSelected()
+                ? UiStrings.Get("PrinterId_Label_FiscalNet")
+                : UiStrings.Get("PrinterId_Label_EscPos");
             RefreshPrinterIdFromNameIfNeeded();
             ApplyPrinterTypeUi();
         }
     }
 
-    private void PrinterTypeCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SetupTypeRadio_OnChecked(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded)
             return;
+        ApplySetupTypeUi();
+        SyncPrinterTypeComboFromSetup();
+    }
+
+    private bool IsFiscalNetSetupSelected() =>
+        SetupTypeFiscalNetRadio?.IsChecked == true;
+
+    private void ApplySetupTypeUi()
+    {
+        if (EscPosScanPanel is null || SetupTypeHintText is null)
+            return;
+
+        var fiscal = IsFiscalNetSetupSelected();
+        EscPosScanPanel.Visibility = fiscal ? Visibility.Collapsed : Visibility.Visible;
+        SetupTypeHintText.Text = fiscal
+            ? UiStrings.Get("SetupType_FiscalNet_Hint")
+            : UiStrings.Get("SetupType_EscPos_Hint");
+    }
+
+    private NicSubnetOption? GetSelectedNicOption() =>
+        NicCombo.SelectedItem as NicSubnetOption;
+
+    private string? GetSelectedNicIpv4String() =>
+        GetSelectedNicOption()?.IPv4.ToString();
+
+    private void SyncPrinterTypeComboFromSetup()
+    {
+        if (PrinterTypeCombo is null || _printerTypeProgrammaticChange)
+            return;
+
+        var targetTag = IsFiscalNetSetupSelected() ? PrinterTypes.FiscalNet : PrinterTypes.EscPos;
+        foreach (var item in PrinterTypeCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (item.Tag is string tag &&
+                string.Equals(tag, targetTag, StringComparison.OrdinalIgnoreCase))
+            {
+                _printerTypeProgrammaticChange = true;
+                try
+                {
+                    PrinterTypeCombo.SelectedItem = item;
+                }
+                finally
+                {
+                    _printerTypeProgrammaticChange = false;
+                }
+                return;
+            }
+        }
+    }
+
+    private void SyncSetupFromPrinterTypeCombo()
+    {
+        if (SetupTypeEscPosRadio is null || SetupTypeFiscalNetRadio is null)
+            return;
+
+        if (IsFiscalNetSelected())
+            SetupTypeFiscalNetRadio.IsChecked = true;
+        else
+            SetupTypeEscPosRadio.IsChecked = true;
+    }
+
+    private void PrefillFiscalNetAddressFromNic()
+    {
+        var nicIp = GetSelectedNicIpv4String();
+        if (!string.IsNullOrWhiteSpace(nicIp))
+            IpAddressBox.Text = nicIp;
+    }
+
+    private void PrinterTypeCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _printerTypeProgrammaticChange)
+            return;
+        SyncSetupFromPrinterTypeCombo();
+        ApplySetupTypeUi();
         ApplyPrinterTypeUi();
     }
 
@@ -290,12 +420,16 @@ public partial class MainWindow
 
         var fiscal = IsFiscalNetSelected();
         FiscalSettingsPanel.Visibility = fiscal ? Visibility.Visible : Visibility.Collapsed;
-        PortLabel.Content = fiscal ? "Port HTTP" : "Port TCP";
+        PortLabel.Content = fiscal ? UiStrings.Get("PortLabel_Http") : UiStrings.Get("Port_Label");
 
         if (fiscal)
         {
             if (string.IsNullOrWhiteSpace(IpAddressBox.Text))
-                IpAddressBox.Text = "127.0.0.1";
+            {
+                var nicIp = GetSelectedNicIpv4String();
+                if (!string.IsNullOrWhiteSpace(nicIp))
+                    IpAddressBox.Text = nicIp;
+            }
             if (PortBox.Text.Trim() is "" or "9100")
                 PortBox.Text = "65400";
         }
@@ -343,9 +477,20 @@ public partial class MainWindow
 
         if (_step == 1)
         {
-            if (NicCombo.SelectedItem is not NicSubnetOption)
+            if (GetSelectedNicOption() is null)
             {
-                MessageBox.Show(this, "Selectați o interfață de rețea.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, UiStrings.Get("Validation_SelectNic"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (IsFiscalNetSetupSelected())
+            {
+                _selectedHost = null;
+                _step++;
+                _printerIdManual = false;
+                SyncPrinterTypeComboFromSetup();
+                PrefillFiscalNetAddressFromNic();
+                UpdateStepUi();
                 return;
             }
 
@@ -353,8 +498,8 @@ public partial class MainWindow
             {
                 MessageBox.Show(
                     this,
-                    "Confirmați că doriți scanarea activă a subnetului bifând caseta de mai sus.",
-                    "Consimțământ",
+                    UiStrings.Get("Validation_ScanConsent"),
+                    UiStrings.Get("Validation_Title"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
@@ -364,8 +509,8 @@ public partial class MainWindow
             {
                 MessageBox.Show(
                     this,
-                    "Rulați scanul și selectați o adresă din listă.",
-                    "Validare",
+                    UiStrings.Get("Validation_SelectScannedHost"),
+                    UiStrings.Get("Validation_Title"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
@@ -374,6 +519,7 @@ public partial class MainWindow
             _selectedHost = ip;
             _step++;
             _printerIdManual = false;
+            SyncPrinterTypeComboFromSetup();
             UpdateStepUi();
             return;
         }
@@ -388,7 +534,7 @@ public partial class MainWindow
         var pid = PrinterIdBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
-            MessageBox.Show(this, "Introduceți numele afișat al imprimantei.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_PrinterName"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -396,8 +542,8 @@ public partial class MainWindow
         {
             MessageBox.Show(
                 this,
-                "PrinterId trebuie să fie nevid și să conțină doar litere, cifre, punct, cratimă sau underscore.",
-                "Validare",
+                UiStrings.Get("Validation_PrinterId"),
+                UiStrings.Get("Validation_Title"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -405,7 +551,7 @@ public partial class MainWindow
 
         if (_selectedHost == null && !IsFiscalNetSelected())
         {
-            MessageBox.Show(this, "Lipsește adresa imprimantei.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_MissingAddress"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -415,13 +561,13 @@ public partial class MainWindow
 
         if (!IPAddress.TryParse(ipText, out var ipAddress))
         {
-            MessageBox.Show(this, "Adresă IP invalidă.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_InvalidIp"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (!int.TryParse(PortBox.Text.Trim(), out var port) || port is < 1 or > 65535)
         {
-            MessageBox.Show(this, "Port TCP invalid (1–65535).", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_InvalidTcpPort"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -429,7 +575,9 @@ public partial class MainWindow
         try
         {
             var root = _store.LoadOrCreateTemplate();
-            root["EnrollmentCode"] = EnrollmentCodeBox.Text.Trim();
+            var enrollmentCode = EnrollmentCodeBox.Text.Trim();
+            if (!(_skipEnrollmentMode && string.IsNullOrWhiteSpace(enrollmentCode)))
+                root["EnrollmentCode"] = enrollmentCode;
 
             var printers = root["Printers"] as JsonArray ?? new JsonArray();
             root["Printers"] = printers;
@@ -446,9 +594,7 @@ public partial class MainWindow
                 }
             }
 
-            var printerType = PrinterTypes.EscPos;
-            if (PrinterTypeCombo.SelectedItem is ComboBoxItem typeItem && typeItem.Tag is string typeTag)
-                printerType = typeTag;
+            var printerType = ResolvePrinterTypeForSave(port);
 
             var entry = new JsonObject
             {
@@ -479,14 +625,12 @@ public partial class MainWindow
             ReloadExistingPrintersList();
 
             _step = 3;
-            DoneMessageText.Text =
-                $"Configurația a fost salvată în:{Environment.NewLine}{_store.AgentJsonPath}{Environment.NewLine}{Environment.NewLine}" +
-                "Reporniți serviciul URSPrinterAgent dacă rulează, ca să reîncarce setările.";
+            DoneMessageText.Text = UiStrings.Format("DoneMessage_Saved", _store.AgentJsonPath);
             UpdateStepUi();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Salvare eșuată: {ex.Message}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, UiStrings.Format("SaveFailed", ex.Message), UiStrings.Get("Error_Title"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -494,13 +638,27 @@ public partial class MainWindow
         }
     }
 
+    private string ResolvePrinterTypeForSave(int port)
+    {
+        if (IsFiscalNetSelected() || IsFiscalNetSetupSelected())
+            return PrinterTypes.FiscalNet;
+
+        if (port == PrinterTypes.DefaultFiscalNetPort)
+            return PrinterTypes.FiscalNet;
+
+        return PrinterTypes.EscPos;
+    }
+
     private void NicCombo_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (NicCombo.SelectedItem is NicSubnetOption opt)
         {
-            SubnetSummaryText.Text =
-                $"Subnet scanat: {opt.CidrDisplay}{Environment.NewLine}" +
-                $"Adresa locală: {opt.IPv4} / {opt.PrefixLength}{(opt.HasDefaultGateway ? " (are gateway implicit)" : "")}";
+            SubnetSummaryText.Text = UiStrings.Format(
+                "SubnetSummary",
+                opt.CidrDisplay,
+                opt.IPv4,
+                opt.PrefixLength,
+                opt.HasDefaultGateway ? UiStrings.Get("SubnetSummary_HasGateway") : "");
         }
         else
             SubnetSummaryText.Text = "";
@@ -510,7 +668,7 @@ public partial class MainWindow
     {
         if (NicCombo.SelectedItem is not NicSubnetOption opt)
         {
-            MessageBox.Show(this, "Selectați o interfață de rețea.", "Validare", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_SelectNic"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -518,8 +676,8 @@ public partial class MainWindow
         {
             MessageBox.Show(
                 this,
-                "Bifați consimțământul pentru scan înainte de a continua.",
-                "Consimțământ",
+                UiStrings.Get("Validation_ScanConsent"),
+                UiStrings.Get("ScanConsent_Title"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -539,16 +697,16 @@ public partial class MainWindow
             var found = await _scanner.ScanAsync(opt.IPv4, opt.PrefixLength, progress, token).ConfigureAwait(true);
             FoundHostsList.ItemsSource = new ObservableCollection<IPAddress>(found);
             ScanProgressText.Text = found.Count == 0
-                ? "Nicio adresă cu 9100 deschis."
-                : $"Găsite: {found.Count}.";
+                ? UiStrings.Get("Scan_NoneFound")
+                : UiStrings.Format("Scan_FoundCount", found.Count);
         }
         catch (OperationCanceledException)
         {
-            ScanProgressText.Text = "Scan anulat.";
+            ScanProgressText.Text = UiStrings.Get("Scan_Cancelled");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Scan eșuat: {ex.Message}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, UiStrings.Format("Scan_Failed", ex.Message), UiStrings.Get("Error_Title"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -626,21 +784,31 @@ public partial class MainWindow
 
     private async void TestPrintButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (_selectedHost == null)
+        var ipText = IpAddressBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(ipText) && _selectedHost != null)
+            ipText = _selectedHost.ToString();
+
+        if (string.IsNullOrWhiteSpace(ipText) || !IPAddress.TryParse(ipText, out var testIp))
         {
-            MessageBox.Show(this, "Lipsește adresa imprimantei.", "Test print", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_MissingPrinterAddress"), UiStrings.Get("TestPrint_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         if (!int.TryParse(PortBox.Text.Trim(), out var port) || port is < 1 or > 65535)
         {
-            MessageBox.Show(this, "Port TCP invalid.", "Test print", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, UiStrings.Get("Validation_InvalidPort"), UiStrings.Get("TestPrint_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (IsFiscalNetSelected())
+        {
+            MessageBox.Show(this, UiStrings.Get("TestPrint_FiscalNetUnavailable"), UiStrings.Get("TestPrint_Title"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var printer = new Printer
         {
-            IpAddress = _selectedHost.ToString(),
+            IpAddress = testIp.ToString(),
             Port = port,
             Name = string.IsNullOrWhiteSpace(PrinterNameBox.Text) ? "Test" : PrinterNameBox.Text.Trim()
         };
@@ -651,8 +819,8 @@ public partial class MainWindow
             var ok = await _testPrint.SendTestPageAsync(printer).ConfigureAwait(true);
             MessageBox.Show(
                 this,
-                ok ? "Pagină de test trimisă (verificați imprimanta)." : "Nu s-a putut conecta sau trimite datele.",
-                "Test print",
+                ok ? UiStrings.Get("TestPrint_Sent") : UiStrings.Get("TestPrint_Failed"),
+                UiStrings.Get("TestPrint_Title"),
                 MessageBoxButton.OK,
                 ok ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
@@ -698,7 +866,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Explorer", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, ex.Message, UiStrings.Get("Explorer_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -712,8 +880,13 @@ public partial class MainWindow
         PrinterNameBox.Text = "";
         PrinterIdBox.Text = "";
         PortBox.Text = "9100";
+        IpAddressBox.Text = "";
+        SetupTypeEscPosRadio.IsChecked = true;
         _printerIdManual = false;
+        _skipEnrollmentMode = true;
         _step = 1;
+        ApplySetupTypeUi();
+        SyncPrinterTypeComboFromSetup();
         UpdateStepUi();
     }
 }

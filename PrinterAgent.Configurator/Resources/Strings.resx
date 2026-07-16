@@ -37,20 +37,35 @@
     <value>Printer agent setup</value>
   </data>
   <data name="Step1_Description" xml:space="preserve">
-    <value>Enter the enrollment code (from the manager). This code is saved to agent.json in ProgramData.</value>
+    <value>Enter the enrollment code (from the manager). One code enrolls this PC — you can add multiple printers (fiscal + bill) with the same code. Saved to agent.json in ProgramData.</value>
   </data>
   <data name="EnrollmentCode_Label" xml:space="preserve">
     <value>Enrollment code (alphanumeric)</value>
   </data>
   <data name="EnrollmentCode_Hint" xml:space="preserve">
-    <value>6–32 characters: letters and digits.</value>
+    <value>Exactly 10 characters: letters and digits (from Manager).</value>
   </data>
 
   <data name="Step2_Title" xml:space="preserve">
-    <value>Local network and port 9100 scan</value>
+    <value>Printer type and network</value>
   </data>
   <data name="Step2_Description" xml:space="preserve">
-    <value>The subnet is derived from the selected IPv4 network interface (same LAN segment as the printer). Scanning is explicit: confirm below, then start the scan.</value>
+    <value>Choose the printer type, then select the network interface on this PC.</value>
+  </data>
+  <data name="SetupType_Label" xml:space="preserve">
+    <value>Printer type</value>
+  </data>
+  <data name="SetupType_EscPos" xml:space="preserve">
+    <value>Network thermal printer (ESC/POS, port 9100)</value>
+  </data>
+  <data name="SetupType_FiscalNet" xml:space="preserve">
+    <value>FiscalNet cash register (local, HTTP 65400)</value>
+  </data>
+  <data name="SetupType_EscPos_Hint" xml:space="preserve">
+    <value>Scan the subnet for devices with port 9100 open, then pick the printer IP.</value>
+  </data>
+  <data name="SetupType_FiscalNet_Hint" xml:space="preserve">
+    <value>No scan needed. FiscalNet runs on this PC; the next step uses this PC's LAN IP (port 65400).</value>
   </data>
   <data name="Nic_Label" xml:space="preserve">
     <value>Network interface (IPv4)</value>
@@ -73,6 +88,21 @@
   </data>
   <data name="PrinterId_Label" xml:space="preserve">
     <value>PrinterId (stable for jobs)</value>
+  </data>
+  <data name="PrinterId_Label_EscPos" xml:space="preserve">
+    <value>PrinterId for bill printer</value>
+  </data>
+  <data name="PrinterId_Label_FiscalNet" xml:space="preserve">
+    <value>PrinterId for fiscal printer</value>
+  </data>
+  <data name="PrinterId_Hint" xml:space="preserve">
+    <value>Stable ID used by the backend and Manager. Examples: kitchen-1 (bill), fiscal-1 (fiscal). Select the same ID in Restaurant settings → Bill printer / Fiscal printer.</value>
+  </data>
+  <data name="PrinterType_Label" xml:space="preserve">
+    <value>Printer type</value>
+  </data>
+  <data name="FiscalNet_Hint" xml:space="preserve">
+    <value>FiscalNet: install the driver on this PC. Use this PC's LAN IP (e.g. 192.168.x.x), not localhost.</value>
   </data>
   <data name="Port_Label" xml:space="preserve">
     <value>TCP port</value>
@@ -97,14 +127,27 @@
     <value>Add another printer (same subnet)</value>
   </data>
   <data name="DoneHintText" xml:space="preserve">
-    <value>For two printers on the same LAN: save the first, then “Add another printer”, scan again, choose the other IP address and a different PrinterId (e.g., kitchen-1, bar-1).</value>
+    <value>For fiscal + bill: save the first printer, then “Add another printer” (or close and reopen Configurator — no new enrollment code needed if the agent is already enrolled). Use different PrinterIds (e.g. fiscal-1, kitchen-1) and set them in Manager → Restaurant settings.</value>
+  </data>
+
+  <data name="Footer_Step1_NotEnrolled" xml:space="preserve">
+    <value>Step 1/4 — agent not enrolled. Generate a new enrollment code in Manager.</value>
+  </data>
+  <data name="Footer_Step2_AddPrinter" xml:space="preserve">
+    <value>Agent already enrolled on this PC. Add a printer — no new enrollment code needed.</value>
+  </data>
+  <data name="Footer_Step2_FiscalNet_AddPrinter" xml:space="preserve">
+    <value>Agent already enrolled. Add a FiscalNet printer — no new enrollment code needed.</value>
   </data>
 
   <data name="Footer_Step1" xml:space="preserve">
     <value>Step 1/4 — enrollment code</value>
   </data>
   <data name="Footer_Step2" xml:space="preserve">
-    <value>Step 2/4 — local network scan</value>
+    <value>Step 2/4 — printer type and network</value>
+  </data>
+  <data name="Footer_Step2_FiscalNet" xml:space="preserve">
+    <value>Step 2/4 — FiscalNet (local driver)</value>
   </data>
   <data name="Footer_Step3" xml:space="preserve">
     <value>Step 3/4 — printer</value>
@@ -117,7 +160,37 @@
     <value>Validation</value>
   </data>
   <data name="Validation_EnrollmentCode" xml:space="preserve">
-    <value>The enrollment code must be 6–32 alphanumeric characters (no spaces).</value>
+    <value>The enrollment code must be exactly 10 alphanumeric characters (no spaces).</value>
+  </data>
+  <data name="Validation_SelectNic" xml:space="preserve">
+    <value>Select a network interface.</value>
+  </data>
+  <data name="Validation_ScanConsent" xml:space="preserve">
+    <value>Confirm the subnet scan consent checkbox before continuing.</value>
+  </data>
+  <data name="Validation_SelectScannedHost" xml:space="preserve">
+    <value>Run the scan and select an address from the list.</value>
+  </data>
+  <data name="Validation_MissingPrinterAddress" xml:space="preserve">
+    <value>Printer address is missing.</value>
+  </data>
+  <data name="Validation_InvalidPort" xml:space="preserve">
+    <value>Invalid port (1–65535).</value>
+  </data>
+  <data name="SelectedHost_WithPort" xml:space="preserve">
+    <value>Address: {0} (port {1})</value>
+  </data>
+  <data name="SelectedHost_FromScan" xml:space="preserve">
+    <value>Selected address: {0} (port {1})</value>
+  </data>
+  <data name="SelectedHost_FiscalNetManual" xml:space="preserve">
+    <value>Enter the PC LAN IP for FiscalNet (e.g. 192.168.x.x, port 65400).</value>
+  </data>
+  <data name="TestPrint_Title" xml:space="preserve">
+    <value>Test print</value>
+  </data>
+  <data name="TestPrint_FiscalNetUnavailable" xml:space="preserve">
+    <value>Test print is only available for ESC/POS printers. For FiscalNet, verify the driver on port 65400 separately.</value>
   </data>
   <data name="ReadAgentJsonFailed" xml:space="preserve">
     <value>Could not read agent.json: {0}</value>
@@ -150,6 +223,89 @@
   </data>
   <data name="Manage_DeleteConfirm" xml:space="preserve">
     <value>Delete printer '{0}' from agent.json?</value>
+  </data>
+
+  <data name="PrinterType_EscPos" xml:space="preserve">
+    <value>Thermal ESC/POS</value>
+  </data>
+  <data name="PrinterType_FiscalNet" xml:space="preserve">
+    <value>FiscalNet (cash register)</value>
+  </data>
+  <data name="IpAddress_Label" xml:space="preserve">
+    <value>IP address</value>
+  </data>
+  <data name="PortLabel_Http" xml:space="preserve">
+    <value>HTTP port</value>
+  </data>
+  <data name="FiscalVatGroup_Label" xml:space="preserve">
+    <value>Default VAT group (1–5)</value>
+  </data>
+  <data name="FiscalDepartment_Label" xml:space="preserve">
+    <value>Default department</value>
+  </data>
+  <data name="FiscalTimeout_Label" xml:space="preserve">
+    <value>Timeout (ms)</value>
+  </data>
+  <data name="Validation_PrinterName" xml:space="preserve">
+    <value>Enter the printer display name.</value>
+  </data>
+  <data name="Validation_PrinterId" xml:space="preserve">
+    <value>PrinterId must be non-empty and contain only letters, digits, dot, hyphen, or underscore.</value>
+  </data>
+  <data name="Validation_MissingAddress" xml:space="preserve">
+    <value>Printer address is missing.</value>
+  </data>
+  <data name="Validation_InvalidIp" xml:space="preserve">
+    <value>Invalid IP address.</value>
+  </data>
+  <data name="Validation_InvalidTcpPort" xml:space="preserve">
+    <value>Invalid TCP port (1–65535).</value>
+  </data>
+  <data name="SaveFailed" xml:space="preserve">
+    <value>Save failed: {0}</value>
+  </data>
+  <data name="Error_Title" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Scan_Progress" xml:space="preserve">
+    <value>Testing {0} addresses on port {1}…</value>
+  </data>
+  <data name="ScanConsent_Title" xml:space="preserve">
+    <value>Consent</value>
+  </data>
+  <data name="Scan_NoneFound" xml:space="preserve">
+    <value>No addresses with port 9100 open.</value>
+  </data>
+  <data name="Scan_FoundCount" xml:space="preserve">
+    <value>Found: {0}.</value>
+  </data>
+  <data name="Scan_Cancelled" xml:space="preserve">
+    <value>Scan cancelled.</value>
+  </data>
+  <data name="Scan_Failed" xml:space="preserve">
+    <value>Scan failed: {0}</value>
+  </data>
+  <data name="SubnetSummary" xml:space="preserve">
+    <value>Subnet scanned: {0}
+Local address: {1} / {2}{3}</value>
+  </data>
+  <data name="SubnetSummary_HasGateway" xml:space="preserve">
+    <value> (has default gateway)</value>
+  </data>
+  <data name="DoneMessage_Saved" xml:space="preserve">
+    <value>Configuration saved to:
+{0}
+
+Restart the URSPrinterAgent service if it is running, so it reloads settings.</value>
+  </data>
+  <data name="TestPrint_Sent" xml:space="preserve">
+    <value>Test page sent (check the printer).</value>
+  </data>
+  <data name="TestPrint_Failed" xml:space="preserve">
+    <value>Could not connect or send data.</value>
+  </data>
+  <data name="Explorer_Title" xml:space="preserve">
+    <value>Explorer</value>
   </data>
 </root>
 

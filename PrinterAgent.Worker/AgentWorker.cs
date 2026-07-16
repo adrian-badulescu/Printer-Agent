@@ -76,7 +76,7 @@ public class AgentWorker : BackgroundService
         if (printerCount == 0)
         {
             _logger.LogWarning(
-                "No printers in merged agent.json — jobs will fail until Printers[] is configured. Edit %ProgramData%\\URSPrinterAgent\\agent.json or run Configurator; restart the service after saving.");
+                "No printers in merged agent.json — jobs will fail until Printers[] is configured. Edit %ProgramData%\\URSPrinterAgent\\agent.json or run Configurator; changes apply without restart when the file is saved.");
         }
         else
         {

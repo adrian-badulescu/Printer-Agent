@@ -11,6 +11,7 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
     private readonly ILogger<RedisConnectionMultiplexerHolder> _logger;
     private readonly object _gate = new();
     private IConnectionMultiplexer? _multiplexer;
+    private string? _cachedConnectionString;
 
     public RedisConnectionMultiplexerHolder(
         IAppConfiguration appConfiguration,
@@ -22,13 +23,19 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
 
     public IConnectionMultiplexer Get()
     {
+        var connectionString = _appConfiguration.RedisConnectionString;
         lock (_gate)
         {
-            if (_multiplexer is { IsConnected: true })
+            if (_multiplexer is { IsConnected: true }
+                && !string.IsNullOrWhiteSpace(_cachedConnectionString)
+                && string.Equals(_cachedConnectionString, connectionString, StringComparison.Ordinal))
+            {
                 return _multiplexer;
+            }
 
             _multiplexer?.Dispose();
             _multiplexer = null;
+            _cachedConnectionString = connectionString;
 
             _logger.LogInformation(
                 "Redis: opening connection ({Conn}).",
@@ -41,7 +48,7 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
             });
             // #endregion
 
-            _multiplexer = ConnectionMultiplexer.Connect(_appConfiguration.RedisConnectionString);
+            _multiplexer = ConnectionMultiplexer.Connect(connectionString);
 
             // #region agent log
             DebugSessionLog.Write("B", "RedisConnectionMultiplexerHolder.cs:Get", "redis connection opened", new
@@ -65,6 +72,7 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
             _logger.LogWarning("Redis: disposing connection multiplexer for reconnect.");
             _multiplexer.Dispose();
             _multiplexer = null;
+            _cachedConnectionString = null;
         }
     }
 

@@ -56,6 +56,18 @@ Dacă `Connectivity:VerifyAtStartup` este `true`, asigură-te că `BackendUrl` +
 
 **Configurator (după MSI sau dacă rulezi EXE-ul din build):** parcurge wizard-ul (cod enroll, bifă consimțământ scan, scan port 9100, selectează host, nume + `PrinterId`, opțional test print, Salvează). Verifică apoi `agent.json` (EnrollmentCode + `Printers[]`). Rulează `.\scripts\Verify-UrsPrinterAgentInstall.ps1` fără `-Strict` pentru rezumat; cu `-Strict` eșuează dacă lipsește ceva esențial.
 
+#### Fiscală + bon (două imprimante, același PC agent)
+
+**Important:** codul de înrolare este **per PC agent**, nu per imprimantă. FiscalNet și ESC/POS sunt intrări separate în `Printers[]` din `agent.json` (`type`: `FiscalNet` vs `EscPos`).
+
+| Scenariu | Pași |
+|----------|------|
+| **A — aceeași sesiune Configurator** | Pas 0: cod enroll → pas 1: FiscalNet → salvează `fiscal-1` → pas 4: **Adaugă o altă imprimantă** → ESC/POS scan 9100 → salvează `bucatarie-1` |
+| **B — închizi și revii mai târziu** | Prima dată: enroll + fiscală → repornește serviciul (enroll → `agent.session.json`) → închide Configurator. Redeschide: dacă `agent.session.json` e valid, Configuratorul **sare pasul 0** și merge direct la tip + rețea — **fără cod nou**. Adaugă bon (ESC/POS) și salvează. |
+| **Manager QRFE** | Setări restaurant: `DefaultFiscalPrinterId` = `fiscal-1`, imprimantă bon = `bucatarie-1` (aceleași `PrinterId` ca în `agent.json`). |
+
+Dacă există imprimante în `agent.json` dar **lipsește** `agent.session.json` (agent neînrolat), Configuratorul rămâne la pasul 0 și cere un **cod nou** din Manager.
+
 **Varianta B — script (dev / manual)**
 
 Publică worker-ul (ex. `dotnet publish -c Release -r win-x64`) și instalează:
@@ -141,6 +153,26 @@ Dacă înregistrarea din DB e veche și **nu** are refresh populat, re-enroll cu
 1. După create: `GET /api/print-jobs/{jobId}/status` (JWT manager) — status evoluează spre `Success` sau `Failed` (dacă imprimanta TCP nu răspunde, e tot valid pentru lanțul Redis + API).
 2. Agent: Event Viewer — mesaje „Received job …” / „acknowledged”.
 3. Opțional Redis CLI: `XINFO STREAM print.jobs.{restaurantId}` (fără acolade în cheie — GUID complet).
+
+### 8. Test FiscalNet (stub / curl / sertar `DS^`)
+
+FiscalNet primește **POST** `http://{host}:{port}/api/Receipt` cu body = **JSON array de string-uri** (ex. bon: `["CF^RO123","S^Pizza^625^2000^buc^2^3","P^1^1250"]`; sertar: `["DS^"]`).
+
+| Metodă | Ce vezi | Comandă |
+|--------|---------|---------|
+| **A. FiscalNetStub** | Body complet în consolă | `dotnet run --project PrinterAgent.FiscalNetStub` apoi job prin agent sau curl |
+| **B. curl direct** | Request exact către driver/stub | `curl.exe -X POST "http://127.0.0.1:65400/api/Receipt" -H "Content-Type: application/json" -d "[\"DS^\"]"` |
+| **C. Unit tests** | Linii generate din payload | `dotnet test PrinterAgent.Infrastructure.Tests --filter "FullyQualifiedName~FiscalNet"` |
+| **D. Agent logs** | Succes/eșec (nu liniile) | `%ProgramData%\URSPrinterAgent\logs\worker.log` |
+
+**Stub local** ([`PrinterAgent.FiscalNetStub/Program.cs`](../PrinterAgent.FiscalNetStub/Program.cs)): loghează `POST /api/Receipt body=...`; pentru sertar apare și `command=open-drawer` când body conține `DS^`.
+
+**Prin agent (fără casă reală):** configurează în `agent.json` imprimantă `type: fiscalnet`, `127.0.0.1:65400`, apoi:
+
+- **Redis/backend:** `POST /api/print-jobs` cu payload `{ "type": "fiscal-command", "command": "open-drawer" }` și `printerId` fiscal.
+- **LAN offline:** `POST http://localhost:9247/local/print-jobs` (Bearer din config offline) cu același payload.
+
+**QRFE manage-orders:** butonul **Deschide sertar** trimite același payload; butoanele **Bon fiscal** și **Deschide sertar** sunt vizibile în toate limbile și dezactivate când lipsește imprimanta fiscală configurată.
 
 ## Indicii la erori
 

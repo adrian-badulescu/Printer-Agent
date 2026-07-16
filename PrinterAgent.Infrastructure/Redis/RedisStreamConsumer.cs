@@ -47,8 +47,8 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             return;
         }
 
-        var redis = _redisHolder.Get();
-        var db = redis.GetDatabase();
+        IConnectionMultiplexer redis = _redisHolder.Get();
+        IDatabase db = redis.GetDatabase();
         var prefix = _appConfiguration.RedisStreamKeyPrefix.Trim().TrimEnd('.');
         var streamName = $"{prefix}.{restaurantId}";
         var groupName = _appConfiguration.RedisConsumerGroup.Trim();
@@ -104,6 +104,9 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         {
             try
             {
+                redis = _redisHolder.Get();
+                db = redis.GetDatabase();
+
                 var messages = await db.StreamReadGroupAsync(
                     streamName,
                     groupName,
@@ -120,6 +123,12 @@ public class RedisStreamConsumer : IRedisStreamConsumer
                     // No new messages, wait a bit before polling again
                     await Task.Delay(1000, cancellationToken);
                 }
+            }
+            catch (RedisConnectionException ex)
+            {
+                _redisHolder.Reset();
+                _logger.LogError(ex, "Redis connection lost while consuming stream; reconnecting on next poll.");
+                await Task.Delay(5000, cancellationToken);
             }
             catch (TaskCanceledException)
             {

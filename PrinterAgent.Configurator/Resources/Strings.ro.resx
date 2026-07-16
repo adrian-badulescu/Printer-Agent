@@ -35,7 +35,7 @@
     <value>Configurare agent imprimantă</value>
   </data>
   <data name="Step1_Description" xml:space="preserve">
-    <value>Introduceți codul de înrolare (din manager). Acest cod este salvat în agent.json din ProgramData.</value>
+    <value>Introduceți codul de înrolare (din manager). Un cod înrolare = un PC agent; puteți adăuga mai multe imprimante (fiscală + bon) cu același cod. Salvat în agent.json din ProgramData.</value>
   </data>
   <data name="EnrollmentCode_Label" xml:space="preserve">
     <value>Cod înrolare (alfanumeric)</value>
@@ -44,10 +44,25 @@
     <value>6–32 caractere: litere și cifre.</value>
   </data>
   <data name="Step2_Title" xml:space="preserve">
-    <value>Rețea locală și scan port 9100</value>
+    <value>Tip imprimantă și rețea</value>
   </data>
   <data name="Step2_Description" xml:space="preserve">
-    <value>Se folosește subnetul interfeței IPv4 selectate (același segment cu imprimanta). Scanarea este explicită: confirmați mai jos, apoi porniți scanul.</value>
+    <value>Alegeți tipul imprimantei, apoi interfața de rețea a acestui PC.</value>
+  </data>
+  <data name="SetupType_Label" xml:space="preserve">
+    <value>Tip imprimantă</value>
+  </data>
+  <data name="SetupType_EscPos" xml:space="preserve">
+    <value>Imprimantă termică rețea (ESC/POS, port 9100)</value>
+  </data>
+  <data name="SetupType_FiscalNet" xml:space="preserve">
+    <value>Casă de marcat FiscalNet (local, HTTP 65400)</value>
+  </data>
+  <data name="SetupType_EscPos_Hint" xml:space="preserve">
+    <value>Scanați subnetul pentru dispozitive cu port 9100 deschis, apoi alegeți IP-ul imprimantei.</value>
+  </data>
+  <data name="SetupType_FiscalNet_Hint" xml:space="preserve">
+    <value>Fără scan. FiscalNet rulează pe acest PC; pasul următor folosește IP-ul LAN al PC-ului (port 65400).</value>
   </data>
   <data name="Nic_Label" xml:space="preserve">
     <value>Interfață de rețea (IPv4)</value>
@@ -69,6 +84,21 @@
   </data>
   <data name="PrinterId_Label" xml:space="preserve">
     <value>PrinterId (stabil pentru joburi)</value>
+  </data>
+  <data name="PrinterId_Label_EscPos" xml:space="preserve">
+    <value>PrinterId pentru imprimanta de bon</value>
+  </data>
+  <data name="PrinterId_Label_FiscalNet" xml:space="preserve">
+    <value>PrinterId pentru casa fiscală</value>
+  </data>
+  <data name="PrinterId_Hint" xml:space="preserve">
+    <value>ID stabil folosit de backend și Manager. Ex.: bucatarie-1 (bon), fiscal-1 (casă). Același id îl alegeți în Setări restaurant → Imprimantă bon / Casă fiscală.</value>
+  </data>
+  <data name="PrinterType_Label" xml:space="preserve">
+    <value>Tip imprimantă</value>
+  </data>
+  <data name="FiscalNet_Hint" xml:space="preserve">
+    <value>FiscalNet: instalați driverul pe acest PC. Folosiți IP-ul LAN al PC-ului (ex. 192.168.x.x), nu localhost.</value>
   </data>
   <data name="Port_Label" xml:space="preserve">
     <value>Port TCP</value>
@@ -92,13 +122,25 @@
     <value>Adaugă o altă imprimantă (același subnet)</value>
   </data>
   <data name="DoneHintText" xml:space="preserve">
-    <value>Pentru două imprimante pe același LAN: salvezi prima, apoi „Adaugă o altă imprimantă”, scanezi din nou, alegi cealaltă adresă IP și un PrinterId diferit (ex. bucatarie-1, bar-1).</value>
+    <value>Pentru fiscală + bon: salvați prima imprimantă, apoi „Adaugă o altă imprimantă” (sau închideți și redeschideți Configuratorul — nu e nevoie de cod nou dacă agentul e deja înrolat). PrinterId diferite (ex. fiscal-1, bucatarie-1) și le setați în Manager → Setări restaurant.</value>
+  </data>
+  <data name="Footer_Step1_NotEnrolled" xml:space="preserve">
+    <value>Pas 1/4 — agent neînrolat. Generați un cod nou de înrolare în Manager.</value>
+  </data>
+  <data name="Footer_Step2_AddPrinter" xml:space="preserve">
+    <value>Agent deja înrolat pe acest PC. Adăugați o imprimantă — nu este nevoie de cod nou.</value>
+  </data>
+  <data name="Footer_Step2_FiscalNet_AddPrinter" xml:space="preserve">
+    <value>Agent deja înrolat. Adăugați o imprimantă FiscalNet — nu este nevoie de cod nou.</value>
   </data>
   <data name="Footer_Step1" xml:space="preserve">
     <value>Pas 1/4 — cod înrolare</value>
   </data>
   <data name="Footer_Step2" xml:space="preserve">
-    <value>Pas 2/4 — scan rețea locală</value>
+    <value>Pas 2/4 — tip imprimantă și rețea</value>
+  </data>
+  <data name="Footer_Step2_FiscalNet" xml:space="preserve">
+    <value>Pas 2/4 — FiscalNet (driver local)</value>
   </data>
   <data name="Footer_Step3" xml:space="preserve">
     <value>Pas 3/4 — imprimantă</value>
@@ -111,6 +153,36 @@
   </data>
   <data name="Validation_EnrollmentCode" xml:space="preserve">
     <value>Codul de înrolare trebuie să aibă 6–32 caractere alfanumerice (fără spații).</value>
+  </data>
+  <data name="Validation_SelectNic" xml:space="preserve">
+    <value>Selectați o interfață de rețea.</value>
+  </data>
+  <data name="Validation_ScanConsent" xml:space="preserve">
+    <value>Confirmați consimțământul pentru scan bifând caseta de mai sus.</value>
+  </data>
+  <data name="Validation_SelectScannedHost" xml:space="preserve">
+    <value>Rulați scanul și selectați o adresă din listă.</value>
+  </data>
+  <data name="Validation_MissingPrinterAddress" xml:space="preserve">
+    <value>Lipsește adresa imprimantei.</value>
+  </data>
+  <data name="Validation_InvalidPort" xml:space="preserve">
+    <value>Port invalid (1–65535).</value>
+  </data>
+  <data name="SelectedHost_WithPort" xml:space="preserve">
+    <value>Adresă: {0} (port {1})</value>
+  </data>
+  <data name="SelectedHost_FromScan" xml:space="preserve">
+    <value>Adresă selectată: {0} (port {1})</value>
+  </data>
+  <data name="SelectedHost_FiscalNetManual" xml:space="preserve">
+    <value>Introduceți IP-ul LAN al PC-ului pentru FiscalNet (ex. 192.168.x.x, port 65400).</value>
+  </data>
+  <data name="TestPrint_Title" xml:space="preserve">
+    <value>Test print</value>
+  </data>
+  <data name="TestPrint_FiscalNetUnavailable" xml:space="preserve">
+    <value>Test print este disponibil doar pentru ESC/POS. Pentru FiscalNet, verificați driverul pe port 65400 separat.</value>
   </data>
   <data name="ReadAgentJsonFailed" xml:space="preserve">
     <value>Nu s-a putut citi agent.json: {0}</value>

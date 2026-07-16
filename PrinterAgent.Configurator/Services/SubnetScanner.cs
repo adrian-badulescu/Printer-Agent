@@ -18,7 +18,7 @@ public sealed record NicSubnetOption(
         get
         {
             var network = IpMath.GetNetworkAddress(IPv4, PrefixLength);
-            return $"{IPv4}/{PrefixLength} (rețea {network}/{PrefixLength})";
+            return $"{IPv4}/{PrefixLength} (network {network}/{PrefixLength})";
         }
     }
 }
@@ -126,7 +126,7 @@ public sealed class Port9100Scanner
         CancellationToken cancellationToken = default)
     {
         var targets = IpMath.EnumerateHostAddresses(localIpv4, prefixLength).ToList();
-        progress?.Report($"Se testează {targets.Count} adrese pe portul {Port}…");
+        progress?.Report(UiStrings.Format("Scan_Progress", targets.Count, Port));
 
         var found = new ConcurrentBag<IPAddress>();
         using var gate = new SemaphoreSlim(MaxParallel);

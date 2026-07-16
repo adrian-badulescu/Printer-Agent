@@ -13,6 +13,7 @@ public interface ILocalPrintJobHandler
 public sealed class LocalPrintJobHandler : ILocalPrintJobHandler
 {
     private readonly IPrinterServiceFactory _printerServiceFactory;
+    private readonly IFiscalCommandRouter _fiscalCommandRouter;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IAgentSessionStore _sessionStore;
     private readonly IPrinterDiscoveryService _printerDiscovery;
@@ -21,6 +22,7 @@ public sealed class LocalPrintJobHandler : ILocalPrintJobHandler
 
     public LocalPrintJobHandler(
         IPrinterServiceFactory printerServiceFactory,
+        IFiscalCommandRouter fiscalCommandRouter,
         IAppConfiguration appConfiguration,
         IAgentSessionStore sessionStore,
         IPrinterDiscoveryService printerDiscovery,
@@ -28,6 +30,7 @@ public sealed class LocalPrintJobHandler : ILocalPrintJobHandler
         ILogger<LocalPrintJobHandler> logger)
     {
         _printerServiceFactory = printerServiceFactory;
+        _fiscalCommandRouter = fiscalCommandRouter;
         _appConfiguration = appConfiguration;
         _sessionStore = sessionStore;
         _printerDiscovery = printerDiscovery;
@@ -64,8 +67,7 @@ public sealed class LocalPrintJobHandler : ILocalPrintJobHandler
             return PrintJobResult.Failed("PRINTER_NOT_FOUND");
         }
 
-        var printerService = _printerServiceFactory.Resolve(printer);
-        var result = await printerService.PrintAsync(printer, job, cancellationToken).ConfigureAwait(false);
+        var result = await ExecutePrintAsync(printer, job, cancellationToken).ConfigureAwait(false);
         if (result.Success)
             return result;
 
@@ -80,7 +82,28 @@ public sealed class LocalPrintJobHandler : ILocalPrintJobHandler
         var retryPrinter = _appConfiguration.Printers.FirstOrDefault(p =>
                                string.Equals(p.Id, job.PrinterId, StringComparison.OrdinalIgnoreCase))
                            ?? recovery.Printer;
-        var retryService = _printerServiceFactory.Resolve(retryPrinter);
-        return await retryService.PrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+        return await ExecutePrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<PrintJobResult> ExecutePrintAsync(
+        Printer printer,
+        PrintJob job,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(job.Payload?.Type, PrintJobPayloadTypes.FiscalCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            var payload = job.Payload!;
+            var command = (payload.Command ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(command))
+                return PrintJobResult.Failed("MISSING_FISCAL_COMMAND");
+
+            return await _fiscalCommandRouter.ExecuteAsync(
+                printer,
+                new FiscalCommandRequest { Command = command },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var printerService = _printerServiceFactory.Resolve(printer);
+        return await printerService.PrintAsync(printer, job, cancellationToken).ConfigureAwait(false);
     }
 }

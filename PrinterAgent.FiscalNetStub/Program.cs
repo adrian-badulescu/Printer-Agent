@@ -6,7 +6,11 @@ var receiptCounter = 0;
 app.MapPost("/api/Receipt", async (HttpRequest request) =>
 {
     var body = await new StreamReader(request.Body).ReadToEndAsync();
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] POST /api/Receipt body={body}");
+    var isDrawerCommand = body.Contains("DS^", StringComparison.Ordinal);
+    if (isDrawerCommand)
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] POST /api/Receipt command=open-drawer body={body}");
+    else
+        Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] POST /api/Receipt body={body}");
 
     receiptCounter++;
     return Results.Json(new[] { "BONOK=1", receiptCounter.ToString("D4") });

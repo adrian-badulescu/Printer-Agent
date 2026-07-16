@@ -19,6 +19,7 @@ public static class AgentProgramData
         var root = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         var path = Path.Combine(root, FolderName);
         Directory.CreateDirectory(path);
+        AgentProgramDataAccess.EnsureWritable();
         return path;
     }
 }

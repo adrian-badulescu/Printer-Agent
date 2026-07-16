@@ -22,6 +22,9 @@ public class PrintJobPayload
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
 
+    [JsonPropertyName("command")]
+    public string? Command { get; set; }
+
     [JsonPropertyName("orderId")]
     public string OrderId { get; set; } = string.Empty;
 

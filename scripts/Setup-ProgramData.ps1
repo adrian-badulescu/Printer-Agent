@@ -19,6 +19,7 @@ if (-not (Test-Path $dataDir)) {
 # Interactive Configurator + typical service identities
 $accounts = @(
     'BUILTIN\Users',
+    'BUILTIN\Administrators',
     'NT SERVICE\LOCAL SERVICE',
     'NT AUTHORITY\LOCAL SERVICE',
     'NT AUTHORITY\NETWORK SERVICE'

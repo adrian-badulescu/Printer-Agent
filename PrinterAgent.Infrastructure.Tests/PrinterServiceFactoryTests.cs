@@ -22,6 +22,7 @@ public sealed class PrinterServiceFactoryTests
 
         Assert.Same(escPos, factory.Resolve(new Printer { Type = PrinterTypes.EscPos }));
         Assert.Same(fiscalNet, factory.Resolve(new Printer { Type = PrinterTypes.FiscalNet }));
+        Assert.Same(fiscalNet, factory.Resolve(new Printer { Type = PrinterTypes.EscPos, Port = 65400 }));
         Assert.Same(escPos, factory.Resolve(new Printer()));
     }
 

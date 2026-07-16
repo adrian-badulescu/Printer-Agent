@@ -86,6 +86,12 @@
     </StandardDirectory>
 
     <ComponentGroup Id="AgentProgramDataComponents" Directory="AGENTPROGRAMDATAFOLDER">
+      <Component Id="AgentProgramDataFolder" Guid="b3c4d5e6-f7a8-4901-b234-567890abcdef" Directory="AGENTPROGRAMDATAFOLDER" Bitness="always64">
+        <CreateFolder>
+          <util:PermissionEx User="Users" GenericAll="yes" />
+          <util:PermissionEx User="Administrators" GenericAll="yes" />
+        </CreateFolder>
+      </Component>
       <Component Id="AgentProgramDataLogsFolder" Guid="a1f2e3d4-c5b6-4789-a012-3456789abcde" Directory="AGENTPROGRAMDATALOGS" Bitness="always64">
         <CreateFolder>
           <util:PermissionEx User="Users" GenericAll="yes" />

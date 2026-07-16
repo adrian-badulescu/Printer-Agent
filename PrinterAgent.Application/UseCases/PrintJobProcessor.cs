@@ -14,6 +14,7 @@ public interface IPrintJobProcessor
 public class PrintJobProcessor : IPrintJobProcessor
 {
     private readonly IPrinterServiceFactory _printerServiceFactory;
+    private readonly IFiscalCommandRouter _fiscalCommandRouter;
     private readonly IBackendClient _backendClient;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IAgentSessionStore _sessionStore;
@@ -23,6 +24,7 @@ public class PrintJobProcessor : IPrintJobProcessor
 
     public PrintJobProcessor(
         IPrinterServiceFactory printerServiceFactory,
+        IFiscalCommandRouter fiscalCommandRouter,
         IBackendClient backendClient,
         IAppConfiguration appConfiguration,
         IAgentSessionStore sessionStore,
@@ -31,6 +33,7 @@ public class PrintJobProcessor : IPrintJobProcessor
         ILogger<PrintJobProcessor> logger)
     {
         _printerServiceFactory = printerServiceFactory;
+        _fiscalCommandRouter = fiscalCommandRouter;
         _backendClient = backendClient;
         _appConfiguration = appConfiguration;
         _sessionStore = sessionStore;
@@ -78,8 +81,7 @@ public class PrintJobProcessor : IPrintJobProcessor
             return;
         }
 
-        var printerService = _printerServiceFactory.Resolve(printer);
-        var result = await printerService.PrintAsync(printer, job, cancellationToken);
+        var result = await ExecutePrintAsync(printer, job, cancellationToken);
         var success = result.Success;
         if (!success)
         {
@@ -93,8 +95,7 @@ public class PrintJobProcessor : IPrintJobProcessor
                 var retryPrinter = _appConfiguration.Printers.FirstOrDefault(p =>
                                       string.Equals(p.Id, job.PrinterId, StringComparison.OrdinalIgnoreCase))
                                   ?? recovery.Printer;
-                var retryService = _printerServiceFactory.Resolve(retryPrinter);
-                result = await retryService.PrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
+                result = await ExecutePrintAsync(retryPrinter, job, cancellationToken).ConfigureAwait(false);
                 success = result.Success;
             }
         }
@@ -111,5 +112,27 @@ public class PrintJobProcessor : IPrintJobProcessor
             result.DeviceErrorCode,
             cancellationToken);
         AgentMetrics.JobsProcessed.Add(1);
+    }
+
+    private async Task<PrintJobResult> ExecutePrintAsync(
+        Printer printer,
+        PrintJob job,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(job.Payload?.Type, PrintJobPayloadTypes.FiscalCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            var payload = job.Payload!;
+            var command = (payload.Command ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(command))
+                return PrintJobResult.Failed("MISSING_FISCAL_COMMAND");
+
+            return await _fiscalCommandRouter.ExecuteAsync(
+                printer,
+                new FiscalCommandRequest { Command = command },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var printerService = _printerServiceFactory.Resolve(printer);
+        return await printerService.PrintAsync(printer, job, cancellationToken).ConfigureAwait(false);
     }
 }
