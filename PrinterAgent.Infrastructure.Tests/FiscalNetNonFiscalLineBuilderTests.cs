@@ -59,4 +59,23 @@ public sealed class FiscalNetNonFiscalLineBuilderTests
 
         Assert.Contains(lines, line => line == "TL^1x BadName");
     }
+
+    [Fact]
+    public void Build_omits_order_line_when_order_id_missing()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "bill",
+                OrderId = "",
+                RestaurantName = "Test Restaurant",
+                Items = [new PrintJobItem { Name = "Pizza", Quantity = 1, UnitPrice = 10m }]
+            }
+        };
+
+        var lines = FiscalNetNonFiscalLineBuilder.Build(job, new Printer());
+
+        Assert.DoesNotContain(lines, line => line.Contains("Order:", StringComparison.Ordinal));
+    }
 }

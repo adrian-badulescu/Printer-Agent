@@ -23,7 +23,9 @@ public static class FiscalNetNonFiscalLineBuilder
         if (!string.IsNullOrWhiteSpace(restaurantName))
             lines.Add(ToTextLine(restaurantName));
 
-        lines.Add(ToTextLine($"Order:{SafeAscii(job.Payload.OrderId)}"));
+        var orderId = SafeAscii(job.Payload.OrderId);
+        if (!string.IsNullOrWhiteSpace(orderId))
+            lines.Add(ToTextLine($"Order:{orderId}"));
 
         var tableName = SafeAscii(job.Payload.TableName);
         if (!string.IsNullOrWhiteSpace(tableName))
