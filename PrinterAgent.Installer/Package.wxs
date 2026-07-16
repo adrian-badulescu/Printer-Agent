@@ -88,6 +88,7 @@
     <ComponentGroup Id="AgentProgramDataComponents" Directory="AGENTPROGRAMDATAFOLDER">
       <Component Id="AgentProgramDataFolder" Guid="b3c4d5e6-f7a8-4901-b234-567890abcdef" Directory="AGENTPROGRAMDATAFOLDER" Bitness="always64">
         <CreateFolder>
+          <util:PermissionEx User="NT AUTHORITY\SYSTEM" GenericAll="yes" />
           <util:PermissionEx User="Users" GenericAll="yes" />
           <util:PermissionEx User="Administrators" GenericAll="yes" />
         </CreateFolder>

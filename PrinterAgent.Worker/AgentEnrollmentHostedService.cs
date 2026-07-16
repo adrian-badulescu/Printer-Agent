@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Storage;
 using PrinterAgent.Infrastructure.Networking;
-using PrinterAgent.Infrastructure.Observability;
+using PrinterAgent.Application.Observability;
 using PrinterAgent.Infrastructure.Redis;
 using PrinterAgent.Worker.Config;
 

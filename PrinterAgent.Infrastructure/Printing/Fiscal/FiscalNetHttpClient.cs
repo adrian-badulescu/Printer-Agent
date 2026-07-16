@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using PrinterAgent.Application.Observability;
 using PrinterAgent.Domain;
 
 namespace PrinterAgent.Infrastructure.Printing.Fiscal;
@@ -44,6 +45,23 @@ public sealed class FiscalNetHttpClient
         using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
+        // #region agent log
+        var hasReceiptStatusJson = body.Contains("ReceiptStatus", StringComparison.OrdinalIgnoreCase);
+        DebugSessionLog.Write(
+            hasReceiptStatusJson ? "H1" : "H5",
+            "FiscalNetHttpClient.SendReceiptAsync:response",
+            "fiscalnet http response",
+            new
+            {
+                printerId = printer.Id,
+                url,
+                statusCode = (int)response.StatusCode,
+                bodySnippet = Truncate(body),
+                hasReceiptStatusJson,
+                lineCount = receiptLines.Length,
+            });
+        // #endregion
+
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning("FiscalNet HTTP {Status}: {Body}", (int)response.StatusCode, Truncate(body));
@@ -57,6 +75,19 @@ public sealed class FiscalNetHttpClient
     {
         if (string.IsNullOrWhiteSpace(body))
             return BuildFailureResponse("EMPTY_RESPONSE", body);
+
+        if (TryParseEscPosEmulatorReceiptJson(body, out var receiptStatus))
+        {
+            return new FiscalNetResponse
+            {
+                Success = false,
+                ErrorCode = "NOT_FISCALNET_API",
+                ErrorMessage =
+                    "Port 65400 returned ESC/POS emulator JSON (ReceiptStatus), not FiscalNet (BONOK=). " +
+                    "Install FiscalNet driver or PrinterAgent.FiscalNetStub on 65400; keep ESC/POS emulator on 9100 only.",
+                RawResponse = body,
+            };
+        }
 
         var bonOk = TryReadBonOk(body);
         if (bonOk == 0)
@@ -91,6 +122,33 @@ public sealed class FiscalNetHttpClient
             ErrorMessage = parsed?.RawSnippet,
             RawResponse = body,
         };
+    }
+
+    private static bool TryParseEscPosEmulatorReceiptJson(string body, out bool receiptStatus)
+    {
+        receiptStatus = false;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return false;
+
+            if (!doc.RootElement.TryGetProperty("ReceiptStatus", out var statusEl))
+                return false;
+
+            receiptStatus = statusEl.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.String when bool.TryParse(statusEl.GetString(), out var b) => b,
+                _ => false,
+            };
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static int? TryReadBonOk(string body)

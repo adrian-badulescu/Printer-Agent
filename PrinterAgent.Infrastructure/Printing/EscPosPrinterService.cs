@@ -25,6 +25,21 @@ public class EscPosPrinterService : IPrinterService
 
     public async Task<PrintJobResult> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default)
     {
+        // #region agent log
+        DebugSessionLog.Write(
+            "H2",
+            "EscPosPrinterService.PrintAsync:entry",
+            "escpos tcp print invoked",
+            new
+            {
+                jobId = job.RedisMessageId,
+                printerId = printer.Id,
+                ip = printer.IpAddress,
+                port = printer.Port,
+                payloadType = job.Payload?.Type,
+            });
+        // #endregion
+
         var maxAttempts = _appConfiguration.MaxPrintRetryAttempts;
         var baseDelayMs = _appConfiguration.PrintRetryBaseDelayMs;
 

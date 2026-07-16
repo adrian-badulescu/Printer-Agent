@@ -349,6 +349,8 @@ public sealed class PrinterDiscoveryService : IPrinterDiscoveryService
             Status = p.Status,
             MacAddress = p.MacAddress,
             FallbackProvisional = fallback,
-            LastDiscoveryNote = note
+            LastDiscoveryNote = note,
+            Type = p.Type,
+            Fiscal = p.Fiscal,
         };
 }

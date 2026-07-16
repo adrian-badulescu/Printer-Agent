@@ -8,9 +8,18 @@ namespace PrinterAgent.Application.Storage;
 /// </summary>
 public static class AgentProgramDataAccess
 {
-    public static void EnsureWritable()
+    public static void EnsureWritable(string? programDataRoot = null)
     {
-        var root = AgentProgramData.Root;
+        var root = programDataRoot;
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            if (string.IsNullOrWhiteSpace(commonAppData))
+                return;
+
+            root = Path.Combine(commonAppData, AgentProgramData.FolderName);
+        }
+
         Directory.CreateDirectory(root);
 
         if (!OperatingSystem.IsWindows())
@@ -20,23 +29,27 @@ public static class AgentProgramDataAccess
         {
             var dirInfo = new DirectoryInfo(root);
             var security = dirInfo.GetAccessControl();
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                FileSystemRights.Modify | FileSystemRights.Read | FileSystemRights.Write,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
+            AddModifyRule(security, WellKnownSidType.LocalSystemSid, FileSystemRights.FullControl);
+            AddModifyRule(security, WellKnownSidType.BuiltinUsersSid, FileSystemRights.Modify | FileSystemRights.Read | FileSystemRights.Write);
+            AddModifyRule(security, WellKnownSidType.BuiltinAdministratorsSid, FileSystemRights.FullControl);
             dirInfo.SetAccessControl(security);
         }
         catch
         {
             // MSI / Setup-ProgramData.ps1 may already have set ACLs; do not block startup.
         }
+    }
+
+    private static void AddModifyRule(
+        DirectorySecurity security,
+        WellKnownSidType sidType,
+        FileSystemRights rights)
+    {
+        security.AddAccessRule(new FileSystemAccessRule(
+            new SecurityIdentifier(sidType, null),
+            rights,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+            PropagationFlags.None,
+            AccessControlType.Allow));
     }
 }

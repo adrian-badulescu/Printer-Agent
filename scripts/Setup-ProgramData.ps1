@@ -16,8 +16,9 @@ if (-not (Test-Path $dataDir)) {
     Write-Host "Exists $dataDir"
 }
 
-# Interactive Configurator + typical service identities
+# Interactive Configurator + service identities
 $accounts = @(
+    'NT AUTHORITY\SYSTEM',
     'BUILTIN\Users',
     'BUILTIN\Administrators',
     'NT SERVICE\LOCAL SERVICE',

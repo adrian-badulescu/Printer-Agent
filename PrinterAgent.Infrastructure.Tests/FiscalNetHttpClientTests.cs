@@ -26,6 +26,19 @@ public sealed class FiscalNetHttpClientTests
     }
 
     [Fact]
+    public void ParseResponse_failure_when_escpos_emulator_receipt_status_json()
+    {
+        const string body =
+            """{"ReceiptStatus": false,"ReceiptNumber": "","ReceiptInfo": "","ErrorCode": "","ErrorInfo": ""}""";
+
+        var result = FiscalNetHttpClient.ParseResponse(body);
+
+        Assert.False(result.Success);
+        Assert.Equal("NOT_FISCALNET_API", result.ErrorCode);
+        Assert.Contains("ReceiptStatus", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ParseResponse_failure_when_bonok_minus_one()
     {
         const string body = "BONOK=-1\n";

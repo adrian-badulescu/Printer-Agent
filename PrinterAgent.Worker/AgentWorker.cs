@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.UseCases;
-using PrinterAgent.Infrastructure.Observability;
+using PrinterAgent.Application.Observability;
 using PrinterAgent.Infrastructure.Redis;
 using StackExchange.Redis;
 

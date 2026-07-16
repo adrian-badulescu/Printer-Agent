@@ -16,10 +16,13 @@ public static class AgentProgramData
 
     private static string InitializeRoot()
     {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        var path = Path.Combine(root, FolderName);
+        var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (string.IsNullOrWhiteSpace(commonAppData))
+            throw new InvalidOperationException("CommonApplicationData folder path is not available.");
+
+        var path = Path.Combine(commonAppData, FolderName);
         Directory.CreateDirectory(path);
-        AgentProgramDataAccess.EnsureWritable();
+        AgentProgramDataAccess.EnsureWritable(path);
         return path;
     }
 }
