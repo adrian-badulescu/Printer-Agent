@@ -66,6 +66,40 @@ Dacă `Connectivity:VerifyAtStartup` este `true`, asigură-te că `BackendUrl` +
 | **B — închizi și revii mai târziu** | Prima dată: enroll + fiscală → repornește serviciul (enroll → `agent.session.json`) → închide Configurator. Redeschide: dacă `agent.session.json` e valid, Configuratorul **sare pasul 0** și merge direct la tip + rețea — **fără cod nou**. Adaugă bon (ESC/POS) și salvează. |
 | **Manager QRFE** | Setări restaurant: `DefaultFiscalPrinterId` = `fiscal-1`, imprimantă bon = `bucatarie-1` (aceleași `PrinterId` ca în `agent.json`). |
 
+#### Setup single-device (doar FiscalNet — recomandat RO)
+
+Restaurantele cu casă de marcat **nu** instalează ESC/POS pe `:9100`. O singură intrare în `agent.json`:
+
+```json
+{
+  "Id": "fiscal-6",
+  "Name": "Casa de marcat",
+  "Type": "fiscalnet",
+  "IpAddress": "127.0.0.1",
+  "Port": 65400
+}
+```
+
+| Acțiune staff | Payload `type` | Protocol FiscalNet |
+|---------------|----------------|-------------------|
+| **Print** (notă de plată) | `bill` | Linii `TL^` (bon nefiscal) |
+| **Bon fiscal** | `fiscal-receipt` | Linii `S^` / `P^` |
+| **Deschide sertar** | `fiscal-command` | `DS^` |
+
+Când **Bon fiscal activ** în manager:
+- butonul **Print** → notă de plată pe FiscalNet (`TL^`)
+- butonul **Confirmă** (canvas) → notă de plată pe ESC/POS (`:9100`), **doar liniile de bucătărie** (`isKitchenCartLine`), dacă `DefaultBillPrinterId` e configurat și diferit de imprimanta fiscală
+
+**Exemplu curl notă de plată** (non-fiscal pe FiscalNet):
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:65400/api/Receipt" `
+  -H "Content-Type: application/json" `
+  -d "[\"TL^Non Fiscal\",\"TL^TEST RESTAURANT\",\"TL^Order:ord-1\",\"TL^1x Pizza\",\"TL^25.00 RON\",\"TL^TOTAL: 25.00 RON\"]"
+```
+
+Verificare: `c:\FiscalNet\Istoric\*.txt` — notă de plată = doar `TL^`, bon fiscal = `S^` + `P^`.
+
 Dacă există imprimante în `agent.json` dar **lipsește** `agent.session.json` (agent neînrolat), Configuratorul rămâne la pasul 0 și cere un **cod nou** din Manager.
 
 **Varianta B — script (dev / manual)**

@@ -19,23 +19,32 @@ public sealed class FiscalNetPrinterService : IPrinterService
     public async Task<PrintJobResult> PrintAsync(Printer printer, PrintJob job, CancellationToken cancellationToken = default)
     {
         var payloadType = (job.Payload.Type ?? string.Empty).Trim().ToLowerInvariant();
-        if (payloadType is not ("fiscal-receipt" or "fiscal-invoice"))
+        string[] lines;
+        switch (payloadType)
         {
-            _logger.LogWarning(
-                "FiscalNet printer {PrinterName} received unsupported payload type {PayloadType}.",
-                printer.Name,
-                payloadType);
-            return PrintJobResult.Failed("UNSUPPORTED_PAYLOAD");
+            case "bill":
+                lines = FiscalNetNonFiscalLineBuilder.Build(job, printer);
+                break;
+            case "fiscal-receipt":
+            case "fiscal-invoice":
+                lines = FiscalNetReceiptLineBuilder.Build(job, printer);
+                break;
+            default:
+                _logger.LogWarning(
+                    "FiscalNet printer {PrinterName} received unsupported payload type {PayloadType}.",
+                    printer.Name,
+                    payloadType);
+                return PrintJobResult.Failed("UNSUPPORTED_PAYLOAD");
         }
 
-        var lines = FiscalNetReceiptLineBuilder.Build(job, printer);
         var response = await _httpClient.SendReceiptAsync(printer, lines, cancellationToken).ConfigureAwait(false);
 
         if (response.Success)
         {
             _logger.LogInformation(
-                "Fiscal job {JobId} printed on {PrinterName}. Receipt={ReceiptNumber}.",
+                "FiscalNet job {JobId} ({PayloadType}) printed on {PrinterName}. Receipt={ReceiptNumber}.",
                 job.RedisMessageId,
+                payloadType,
                 printer.Name,
                 response.FiscalReceiptNumber);
             return response.ToPrintJobResult();
@@ -43,8 +52,9 @@ public sealed class FiscalNetPrinterService : IPrinterService
 
         AgentMetrics.PrintFailures.Add(1);
         _logger.LogWarning(
-            "Fiscal job {JobId} failed on {PrinterName}. Code={Code}.",
+            "FiscalNet job {JobId} ({PayloadType}) failed on {PrinterName}. Code={Code}.",
             job.RedisMessageId,
+            payloadType,
             printer.Name,
             response.ErrorCode);
         return response.ToPrintJobResult();
