@@ -225,6 +225,30 @@
     <value>Delete printer '{0}' from agent.json?</value>
   </data>
 
+  <data name="SetupType_EpsonFiscal" xml:space="preserve">
+    <value>Epson fiscal (fpmate.cgi, HTTPS)</value>
+  </data>
+  <data name="SetupType_EpsonFiscal_Hint" xml:space="preserve">
+    <value>No scan needed. Enter the Epson RT printer IP on the LAN. The agent sends ePOS-Fiscal-Print XML to /cgi-bin/fpmate.cgi (default HTTPS port 443).</value>
+  </data>
+  <data name="EpsonFiscal_Hint" xml:space="preserve">
+    <value>Epson: enable the Intelligent web server on the printer (EpsonFpWizard). Agent talks directly to fpmate.cgi — no UPOS bridge on this PC. Dev stub: dotnet run --project PrinterAgent.EpsonBridgeStub (127.0.0.1:9102, HTTP).</value>
+  </data>
+  <data name="FiscalLogicalName_Label" xml:space="preserve">
+    <value>Operator ID (1–12)</value>
+  </data>
+  <data name="Footer_Step2_EpsonFiscal" xml:space="preserve">
+    <value>Step 2/4 — Epson fiscal (fpmate.cgi)</value>
+  </data>
+  <data name="Footer_Step2_EpsonFiscal_AddPrinter" xml:space="preserve">
+    <value>Agent already enrolled. Add an Epson fiscal printer — no new enrollment code needed.</value>
+  </data>
+  <data name="SelectedHost_EpsonFiscalManual" xml:space="preserve">
+    <value>Printer IP on the LAN (e.g. 192.168.1.20). For local dev stub use 127.0.0.1 and port 9102 (HTTP).</value>
+  </data>
+  <data name="PrinterType_EpsonFiscal" xml:space="preserve">
+    <value>Epson fiscal (fpmate.cgi)</value>
+  </data>
   <data name="PrinterType_EscPos" xml:space="preserve">
     <value>Thermal ESC/POS</value>
   </data>

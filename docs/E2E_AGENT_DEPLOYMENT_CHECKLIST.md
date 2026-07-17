@@ -100,6 +100,97 @@ curl.exe -X POST "http://127.0.0.1:65400/api/Receipt" `
 
 Verificare: `c:\FiscalNet\Istoric\*.txt` — notă de plată = doar `TL^`, bon fiscal = `S^` + `P^`.
 
+#### Setup Italia — Epson fiscal (fpmate.cgi / ePOS-Fiscal-Print)
+
+Piața IT folosește **Epson FP-81/90 RT** cu **web server Intelligent** pe imprimantă. Agentul net10 trimite **SOAP + XML ePOS-Fiscal-Print** direct la `https://<IP-FP>/cgi-bin/fpmate.cgi` (fără bridge UPOS pe PC).
+
+| Componentă | Port / path |
+|------------|-------------|
+| Printer Agent (Worker) | client HTTP(S) → imprimantă |
+| Epson FP web server | `POST /cgi-bin/fpmate.cgi` |
+| Contract XML | `epos-fiscal-print-Rev.G.xsd` (Intelligent FP SDK JS) |
+| Config imprimantă | EpsonFpWizard — web server, SET 19 = COMPUTER |
+
+**Pași instalare:**
+
+1. Activează web serverul pe imprimantă (EpsonFpWizard → Parametri Intelligent)
+2. Notează IP-ul imprimantei în LAN (ex. `192.168.1.20`)
+3. Configurator: tip **Epson fiscal**, IP imprimantă, port **443**, `operatorId` = `1` (sau operator configurat pe FP)
+4. Repornește `URSPrinterAgent`; heartbeat trebuie să raporteze `type: epson-fiscal`
+
+**Exemplu `agent.json` (Epson + bucătărie ESC/POS):**
+
+```json
+{
+  "Printers": [
+    {
+      "id": "fiscal-it",
+      "name": "Epson fiscal",
+      "type": "epson-fiscal",
+      "ipAddress": "192.168.1.20",
+      "port": 443,
+      "fiscal": {
+        "operatorId": 1,
+        "useHttps": true,
+        "defaultVatGroup": 1,
+        "defaultDepartment": 1
+      }
+    },
+    {
+      "id": "cucina",
+      "name": "Cucina",
+      "type": "escpos",
+      "ipAddress": "192.168.1.50",
+      "port": 9100
+    }
+  ]
+}
+```
+
+| Acțiune staff | Payload | XML fpmate |
+|---------------|---------|------------|
+| **Print** | `bill` | `printerNonFiscal` + `printNormal` |
+| **Bon fiscal** | `fiscal-receipt` | `printerFiscalReceipt` → `printRecItem` → `printRecTotal` |
+| **Sertar** | `fiscal-command` `open-drawer` | `printerCommand` → `openDrawer` |
+
+**Dev fără hardware:** rulează `dotnet run --project PrinterAgent.EpsonBridgeStub` (stub fpmate.cgi pe `http://127.0.0.1:9102`); configurează agent cu IP `127.0.0.1`, port `9102`, `useHttps: false`.
+
+**Test hardware:** verifică `queryPrinterStatus` sau trimite job fiscal din manager; alternativ SOAP manual:
+
+```powershell
+# Varianta recomandată: here-string (newlines OK, fără escape manual)
+$soap = @'
+<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+  <s:Body>
+    <printerCommand>
+      <queryPrinterStatus operator="1" statusType="0" />
+    </printerCommand>
+  </s:Body>
+</s:Envelope>
+'@
+
+curl.exe -k -X POST "https://192.168.1.20/cgi-bin/fpmate.cgi" `
+  -H "Content-Type: text/xml; charset=UTF-8" `
+  -H 'SOAPAction: ""' `
+  -d $soap
+```
+
+Stub local (HTTP):
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:9102/cgi-bin/fpmate.cgi" `
+  -H "Content-Type: text/xml; charset=UTF-8" `
+  -H 'SOAPAction: ""' `
+  -d $soap
+```
+
+One-liner (fără newlines în XML — nu trebuie escape):
+
+```powershell
+curl.exe -k -X POST "https://192.168.1.20/cgi-bin/fpmate.cgi" -H "Content-Type: text/xml" -H 'SOAPAction: ""' -d '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><printerCommand><queryPrinterStatus operator="1" statusType="0" /></printerCommand></s:Body></s:Envelope>'
+```
+
 Dacă există imprimante în `agent.json` dar **lipsește** `agent.session.json` (agent neînrolat), Configuratorul rămâne la pasul 0 și cere un **cod nou** din Manager.
 
 **Varianta B — script (dev / manual)**

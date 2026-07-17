@@ -230,6 +230,7 @@ public partial class MainWindow
         SetupTypeLabel.Text = UiStrings.Get("SetupType_Label");
         SetupTypeEscPosRadio.Content = UiStrings.Get("SetupType_EscPos");
         SetupTypeFiscalNetRadio.Content = UiStrings.Get("SetupType_FiscalNet");
+        SetupTypeEpsonFiscalRadio.Content = UiStrings.Get("SetupType_EpsonFiscal");
         NicLabel.Content = UiStrings.Get("Nic_Label");
         ScanConsentText.Text = UiStrings.Get("ScanConsent_Text");
         FoundHostsLabel.Content = UiStrings.Get("FoundHosts_Label");
@@ -240,6 +241,10 @@ public partial class MainWindow
         PrinterIdHintText.Text = UiStrings.Get("PrinterId_Hint");
         if (FiscalNetHintText != null)
             FiscalNetHintText.Text = UiStrings.Get("FiscalNet_Hint");
+        if (EpsonFiscalHintText != null)
+            EpsonFiscalHintText.Text = UiStrings.Get("EpsonFiscal_Hint");
+        if (FiscalLogicalNameLabel != null)
+            FiscalLogicalNameLabel.Content = UiStrings.Get("FiscalLogicalName_Label");
         if (IpAddressLabel != null)
             IpAddressLabel.Content = UiStrings.Get("IpAddress_Label");
         if (FiscalVatGroupLabel != null)
@@ -265,9 +270,14 @@ public partial class MainWindow
         {
             if (item.Tag is string tag)
             {
-                item.Content = string.Equals(tag, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase)
-                    ? UiStrings.Get("PrinterType_FiscalNet")
-                    : UiStrings.Get("PrinterType_EscPos");
+                item.Content = tag switch
+                {
+                    _ when string.Equals(tag, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase)
+                        => UiStrings.Get("PrinterType_FiscalNet"),
+                    _ when string.Equals(tag, PrinterTypes.EpsonFiscal, StringComparison.OrdinalIgnoreCase)
+                        => UiStrings.Get("PrinterType_EpsonFiscal"),
+                    _ => UiStrings.Get("PrinterType_EscPos"),
+                };
             }
         }
     }
@@ -289,11 +299,11 @@ public partial class MainWindow
             0 when ExistingPrinters.Count > 0 && !_sessionProbe.HasUsableSession(SessionExpirySkew)
                 => UiStrings.Get("Footer_Step1_NotEnrolled"),
             0 => UiStrings.Get("Footer_Step1"),
-            1 when _skipEnrollmentMode => IsFiscalNetSetupSelected()
-                ? UiStrings.Get("Footer_Step2_FiscalNet_AddPrinter")
+            1 when _skipEnrollmentMode => IsLocalFiscalSetupSelected()
+                ? UiStrings.Get(IsEpsonFiscalSetupSelected() ? "Footer_Step2_EpsonFiscal_AddPrinter" : "Footer_Step2_FiscalNet_AddPrinter")
                 : UiStrings.Get("Footer_Step2_AddPrinter"),
-            1 => IsFiscalNetSetupSelected()
-                ? UiStrings.Get("Footer_Step2_FiscalNet")
+            1 => IsLocalFiscalSetupSelected()
+                ? UiStrings.Get(IsEpsonFiscalSetupSelected() ? "Footer_Step2_EpsonFiscal" : "Footer_Step2_FiscalNet")
                 : UiStrings.Get("Footer_Step2"),
             2 => UiStrings.Get("Footer_Step3"),
             3 => UiStrings.Get("Footer_Step4"),
@@ -313,8 +323,8 @@ public partial class MainWindow
                 ? UiStrings.Format("SelectedHost_WithPort", IpAddressBox.Text.Trim(), PortBox.Text.Trim())
                 : _selectedHost != null
                     ? UiStrings.Format("SelectedHost_FromScan", _selectedHost.ToString(), PortBox.Text.Trim())
-                    : UiStrings.Get("SelectedHost_FiscalNetManual");
-            PrinterIdLabel.Content = IsFiscalNetSelected()
+                    : UiStrings.Get(IsEpsonFiscalSelected() ? "SelectedHost_EpsonFiscalManual" : "SelectedHost_FiscalNetManual");
+            PrinterIdLabel.Content = IsFiscalPrinterSelected()
                 ? UiStrings.Get("PrinterId_Label_FiscalNet")
                 : UiStrings.Get("PrinterId_Label_EscPos");
             RefreshPrinterIdFromNameIfNeeded();
@@ -333,16 +343,24 @@ public partial class MainWindow
     private bool IsFiscalNetSetupSelected() =>
         SetupTypeFiscalNetRadio?.IsChecked == true;
 
+    private bool IsEpsonFiscalSetupSelected() =>
+        SetupTypeEpsonFiscalRadio?.IsChecked == true;
+
+    private bool IsLocalFiscalSetupSelected() =>
+        IsFiscalNetSetupSelected() || IsEpsonFiscalSetupSelected();
+
     private void ApplySetupTypeUi()
     {
         if (EscPosScanPanel is null || SetupTypeHintText is null)
             return;
 
-        var fiscal = IsFiscalNetSetupSelected();
+        var fiscal = IsLocalFiscalSetupSelected();
         EscPosScanPanel.Visibility = fiscal ? Visibility.Collapsed : Visibility.Visible;
-        SetupTypeHintText.Text = fiscal
-            ? UiStrings.Get("SetupType_FiscalNet_Hint")
-            : UiStrings.Get("SetupType_EscPos_Hint");
+        SetupTypeHintText.Text = IsEpsonFiscalSetupSelected()
+            ? UiStrings.Get("SetupType_EpsonFiscal_Hint")
+            : fiscal
+                ? UiStrings.Get("SetupType_FiscalNet_Hint")
+                : UiStrings.Get("SetupType_EscPos_Hint");
     }
 
     private NicSubnetOption? GetSelectedNicOption() =>
@@ -356,7 +374,11 @@ public partial class MainWindow
         if (PrinterTypeCombo is null || _printerTypeProgrammaticChange)
             return;
 
-        var targetTag = IsFiscalNetSetupSelected() ? PrinterTypes.FiscalNet : PrinterTypes.EscPos;
+        var targetTag = IsEpsonFiscalSetupSelected()
+            ? PrinterTypes.EpsonFiscal
+            : IsFiscalNetSetupSelected()
+                ? PrinterTypes.FiscalNet
+                : PrinterTypes.EscPos;
         foreach (var item in PrinterTypeCombo.Items.OfType<ComboBoxItem>())
         {
             if (item.Tag is string tag &&
@@ -378,10 +400,12 @@ public partial class MainWindow
 
     private void SyncSetupFromPrinterTypeCombo()
     {
-        if (SetupTypeEscPosRadio is null || SetupTypeFiscalNetRadio is null)
+        if (SetupTypeEscPosRadio is null || SetupTypeFiscalNetRadio is null || SetupTypeEpsonFiscalRadio is null)
             return;
 
-        if (IsFiscalNetSelected())
+        if (IsEpsonFiscalSelected())
+            SetupTypeEpsonFiscalRadio.IsChecked = true;
+        else if (IsFiscalNetSelected())
             SetupTypeFiscalNetRadio.IsChecked = true;
         else
             SetupTypeEscPosRadio.IsChecked = true;
@@ -403,11 +427,17 @@ public partial class MainWindow
         ApplyPrinterTypeUi();
     }
 
-    private bool IsFiscalNetSelected()
+    private bool IsFiscalNetSelected() => IsPrinterTypeSelected(PrinterTypes.FiscalNet);
+
+    private bool IsEpsonFiscalSelected() => IsPrinterTypeSelected(PrinterTypes.EpsonFiscal);
+
+    private bool IsFiscalPrinterSelected() => IsFiscalNetSelected() || IsEpsonFiscalSelected();
+
+    private bool IsPrinterTypeSelected(string printerType)
     {
         if (PrinterTypeCombo.SelectedItem is ComboBoxItem item &&
             item.Tag is string tag &&
-            string.Equals(tag, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase))
+            string.Equals(tag, printerType, StringComparison.OrdinalIgnoreCase))
             return true;
         return false;
     }
@@ -418,22 +448,44 @@ public partial class MainWindow
         if (FiscalSettingsPanel is null || PortLabel is null || IpAddressBox is null || PortBox is null)
             return;
 
-        var fiscal = IsFiscalNetSelected();
+        var fiscal = IsFiscalPrinterSelected();
+        var epson = IsEpsonFiscalSelected();
         FiscalSettingsPanel.Visibility = fiscal ? Visibility.Visible : Visibility.Collapsed;
         PortLabel.Content = fiscal ? UiStrings.Get("PortLabel_Http") : UiStrings.Get("Port_Label");
+        if (FiscalNetHintText != null)
+            FiscalNetHintText.Visibility = IsFiscalNetSelected() ? Visibility.Visible : Visibility.Collapsed;
+        if (EpsonFiscalHintText != null)
+            EpsonFiscalHintText.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
+        if (FiscalLogicalNameLabel != null)
+            FiscalLogicalNameLabel.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
+        if (FiscalLogicalNameBox != null)
+            FiscalLogicalNameBox.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
 
         if (fiscal)
         {
             if (string.IsNullOrWhiteSpace(IpAddressBox.Text))
             {
-                var nicIp = GetSelectedNicIpv4String();
-                if (!string.IsNullOrWhiteSpace(nicIp))
-                    IpAddressBox.Text = nicIp;
+                if (epson)
+                    IpAddressBox.Text = "127.0.0.1";
+                else
+                {
+                    var nicIp = GetSelectedNicIpv4String();
+                    if (!string.IsNullOrWhiteSpace(nicIp))
+                        IpAddressBox.Text = nicIp;
+                }
             }
-            if (PortBox.Text.Trim() is "" or "9100")
-                PortBox.Text = "65400";
+
+            if (epson && PortBox.Text.Trim() is "" or "9100" or "65400")
+            {
+                var isLocalDev = string.Equals(IpAddressBox.Text.Trim(), "127.0.0.1", StringComparison.Ordinal);
+                PortBox.Text = isLocalDev
+                    ? PrinterTypes.DefaultEpsonFpMateDevPort.ToString()
+                    : PrinterTypes.DefaultEpsonFpMatePort.ToString();
+            }
+            else if (IsFiscalNetSelected() && PortBox.Text.Trim() is "" or "9100")
+                PortBox.Text = PrinterTypes.DefaultFiscalNetPort.ToString();
         }
-        else if (PortBox.Text.Trim() == "65400")
+        else if (PortBox.Text.Trim() is "65400" or "9102" or "443")
         {
             PortBox.Text = "9100";
         }
@@ -483,13 +535,16 @@ public partial class MainWindow
                 return;
             }
 
-            if (IsFiscalNetSetupSelected())
+            if (IsLocalFiscalSetupSelected())
             {
                 _selectedHost = null;
                 _step++;
                 _printerIdManual = false;
                 SyncPrinterTypeComboFromSetup();
-                PrefillFiscalNetAddressFromNic();
+                if (IsEpsonFiscalSetupSelected())
+                    IpAddressBox.Text = "127.0.0.1";
+                else
+                    PrefillFiscalNetAddressFromNic();
                 UpdateStepUi();
                 return;
             }
@@ -549,7 +604,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_selectedHost == null && !IsFiscalNetSelected())
+        if (_selectedHost == null && !IsFiscalPrinterSelected())
         {
             MessageBox.Show(this, UiStrings.Get("Validation_MissingAddress"), UiStrings.Get("Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -605,17 +660,27 @@ public partial class MainWindow
                 ["type"] = printerType
             };
 
-            if (string.Equals(printerType, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(printerType, PrinterTypes.FiscalNet, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(printerType, PrinterTypes.EpsonFiscal, StringComparison.OrdinalIgnoreCase))
             {
                 _ = int.TryParse(FiscalVatGroupBox.Text.Trim(), out var vatGroup);
                 _ = int.TryParse(FiscalDepartmentBox.Text.Trim(), out var department);
                 _ = int.TryParse(FiscalTimeoutBox.Text.Trim(), out var timeoutMs);
-                entry["fiscal"] = new JsonObject
+                var fiscal = new JsonObject
                 {
                     ["defaultVatGroup"] = vatGroup is >= 1 and <= 5 ? vatGroup : 1,
                     ["defaultDepartment"] = department > 0 ? department : 1,
                     ["timeoutMs"] = timeoutMs >= 5000 ? timeoutMs : 120_000
                 };
+
+                if (string.Equals(printerType, PrinterTypes.EpsonFiscal, StringComparison.OrdinalIgnoreCase))
+                {
+                    _ = int.TryParse(FiscalLogicalNameBox.Text.Trim(), out var operatorId);
+                    fiscal["operatorId"] = operatorId is >= 1 and <= 12 ? operatorId : 1;
+                    fiscal["useHttps"] = port != PrinterTypes.DefaultEpsonFpMateDevPort;
+                }
+
+                entry["fiscal"] = fiscal;
             }
 
             MergePreservedPrinterMetadata(replaced, entry);
@@ -640,11 +705,17 @@ public partial class MainWindow
 
     private string ResolvePrinterTypeForSave(int port)
     {
+        if (IsEpsonFiscalSelected() || IsEpsonFiscalSetupSelected())
+            return PrinterTypes.EpsonFiscal;
+
         if (IsFiscalNetSelected() || IsFiscalNetSetupSelected())
             return PrinterTypes.FiscalNet;
 
         if (port == PrinterTypes.DefaultFiscalNetPort)
             return PrinterTypes.FiscalNet;
+
+        if (port == PrinterTypes.DefaultEpsonFpMateDevPort || port == PrinterTypes.DefaultEpsonFpMatePort)
+            return PrinterTypes.EpsonFiscal;
 
         return PrinterTypes.EscPos;
     }
@@ -800,7 +871,7 @@ public partial class MainWindow
             return;
         }
 
-        if (IsFiscalNetSelected())
+        if (IsFiscalPrinterSelected())
         {
             MessageBox.Show(this, UiStrings.Get("TestPrint_FiscalNetUnavailable"), UiStrings.Get("TestPrint_Title"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;

@@ -1,0 +1,166 @@
+using System.Globalization;
+using System.Security;
+using System.Text;
+using PrinterAgent.Domain;
+
+namespace PrinterAgent.Infrastructure.Printing.Fiscal;
+
+public static class EpsonFiscalXmlBuilder
+{
+    public static string BuildPrintXml(PrintJobPayload payload, Printer printer)
+    {
+        var type = (payload.Type ?? string.Empty).Trim().ToLowerInvariant();
+        return type switch
+        {
+            "bill" => BuildNonFiscalBillXml(payload, printer),
+            "fiscal-receipt" or "fiscal-invoice" => BuildFiscalReceiptXml(payload, printer),
+            _ => throw new ArgumentException($"Unsupported payload type '{payload.Type}'.", nameof(payload)),
+        };
+    }
+
+    public static string BuildOpenDrawerXml(Printer printer)
+    {
+        var op = GetOperator(printer);
+        return $"<printerCommand><openDrawer operator=\"{op}\" /></printerCommand>";
+    }
+
+    public static string BuildQueryStatusXml(Printer printer)
+    {
+        var op = GetOperator(printer);
+        return $"<printerCommand><queryPrinterStatus operator=\"{op}\" statusType=\"0\" /></printerCommand>";
+    }
+
+    internal static string BuildFiscalReceiptXml(PrintJobPayload payload, Printer printer)
+    {
+        var op = GetOperator(printer);
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        var sb = new StringBuilder();
+        sb.Append("<printerFiscalReceipt>");
+        sb.Append(CultureInfo.InvariantCulture, $"<beginFiscalReceipt operator=\"{op}\" />");
+
+        foreach (var item in payload.Items)
+        {
+            var qty = item.Quantity <= 0 ? 1 : item.Quantity;
+            var unitPrice = item.UnitPrice ?? item.Price;
+            var department = item.Department ?? item.VatGroup ?? fiscal.DefaultDepartment;
+            if (department <= 0)
+                department = fiscal.DefaultDepartment > 0 ? fiscal.DefaultDepartment : 1;
+
+            sb.Append(CultureInfo.InvariantCulture,
+                $"<printRecItem operator=\"{op}\" description=\"{Escape(item.Name)}\" quantity=\"{qty}\" unitPrice=\"{FormatAmount(unitPrice)}\" department=\"{department}\" justification=\"1\" />");
+        }
+
+        if (!string.IsNullOrWhiteSpace(payload.FooterMessage))
+        {
+            sb.Append(CultureInfo.InvariantCulture,
+                $"<printRecMessage operator=\"{op}\" messageType=\"3\" index=\"1\" font=\"4\" message=\"{Escape(payload.FooterMessage)}\" />");
+        }
+
+        var total = payload.FinalTotal ?? SumItems(payload);
+        var paymentType = MapPaymentType(payload.PaymentMethod);
+        var paymentDescription = MapPaymentDescription(payload.PaymentMethod);
+        sb.Append(CultureInfo.InvariantCulture,
+            $"<printRecTotal operator=\"{op}\" description=\"{Escape(paymentDescription)}\" payment=\"{FormatAmount(total)}\" paymentType=\"{paymentType}\" index=\"0\" justification=\"1\" />");
+        sb.Append(CultureInfo.InvariantCulture, $"<endFiscalReceipt operator=\"{op}\" />");
+        sb.Append("</printerFiscalReceipt>");
+        return sb.ToString();
+    }
+
+    internal static string BuildNonFiscalBillXml(PrintJobPayload payload, Printer printer)
+    {
+        var op = GetOperator(printer);
+        var sb = new StringBuilder();
+        sb.Append("<printerNonFiscal>");
+        sb.Append(CultureInfo.InvariantCulture, $"<beginNonFiscal operator=\"{op}\" />");
+
+        AppendPrintNormal(sb, op, payload.RestaurantName);
+        AppendPrintNormal(sb, op, payload.TableName);
+        if (!string.IsNullOrWhiteSpace(payload.OrderId)
+            && !payload.OrderId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
+        {
+            AppendPrintNormal(sb, op, "Order: " + payload.OrderId);
+        }
+
+        foreach (var item in payload.Items)
+            AppendPrintNormal(sb, op, FormatBillLine(item));
+
+        if (payload.FinalTotal.HasValue)
+        {
+            var currency = string.IsNullOrWhiteSpace(payload.Currency) ? "EUR" : payload.Currency.Trim();
+            AppendPrintNormal(sb, op, $"Total: {payload.FinalTotal.Value:0.00} {currency}");
+        }
+
+        AppendPrintNormal(sb, op, payload.FooterMessage);
+        sb.Append(CultureInfo.InvariantCulture, $"<endNonFiscal operator=\"{op}\" />");
+        sb.Append("</printerNonFiscal>");
+        return sb.ToString();
+    }
+
+    internal static int GetOperator(Printer printer)
+    {
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        var op = fiscal.OperatorId;
+        return op is >= 1 and <= 12 ? op : 1;
+    }
+
+    internal static int MapPaymentType(string? paymentMethod)
+    {
+        var normalized = (paymentMethod ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "card" or "credit" or "carta" or "cardul" => 2,
+            "ticket" or "tickets" => 4,
+            _ => 0,
+        };
+    }
+
+    internal static string MapPaymentDescription(string? paymentMethod)
+    {
+        var normalized = (paymentMethod ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "cash" => "CONTANTE",
+            "card" or "credit" => "CARTA",
+            "" => "CONTANTE",
+            _ => paymentMethod!.Trim().ToUpperInvariant(),
+        };
+    }
+
+    internal static string FormatAmount(decimal amount) =>
+        amount.ToString("0.00", CultureInfo.InvariantCulture);
+
+    internal static decimal SumItems(PrintJobPayload payload)
+    {
+        decimal total = 0m;
+        foreach (var item in payload.Items)
+        {
+            var qty = item.Quantity <= 0 ? 1 : item.Quantity;
+            var unit = item.UnitPrice ?? item.Price;
+            total += unit * qty;
+        }
+
+        return total;
+    }
+
+    private static void AppendPrintNormal(StringBuilder sb, int op, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        sb.Append(CultureInfo.InvariantCulture,
+            $"<printNormal operator=\"{op}\" font=\"2\" data=\"{Escape(text)}\" />");
+    }
+
+    private static string FormatBillLine(PrintJobItem item)
+    {
+        var qty = item.Quantity <= 0 ? 1 : item.Quantity;
+        var unit = item.UnitPrice ?? item.Price;
+        var total = unit * qty;
+        return qty == 1
+            ? $"{item.Name} {total:0.00}"
+            : $"{qty}x {item.Name} {total:0.00}";
+    }
+
+    private static string Escape(string? value) =>
+        SecurityElement.Escape(value ?? string.Empty) ?? string.Empty;
+}

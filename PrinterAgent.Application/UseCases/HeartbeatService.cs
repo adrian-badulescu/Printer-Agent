@@ -19,6 +19,7 @@ public class HeartbeatService : IHeartbeatService
     private readonly IAgentDeviceRenewalService _deviceRenewal;
     private readonly IAppConfiguration _appConfiguration;
     private readonly IPrinterDiscoveryService _printerDiscovery;
+    private readonly IEpsonFiscalClient _epsonFiscalClient;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILocalPrintAuthTokenProvider _localPrintAuthTokenProvider;
     private readonly ILogger<HeartbeatService> _logger;
@@ -30,6 +31,7 @@ public class HeartbeatService : IHeartbeatService
         IAgentDeviceRenewalService deviceRenewal,
         IAppConfiguration appConfiguration,
         IPrinterDiscoveryService printerDiscovery,
+        IEpsonFiscalClient epsonFiscalClient,
         IHttpClientFactory httpClientFactory,
         ILocalPrintAuthTokenProvider localPrintAuthTokenProvider,
         ILogger<HeartbeatService> logger)
@@ -40,6 +42,7 @@ public class HeartbeatService : IHeartbeatService
         _deviceRenewal = deviceRenewal;
         _appConfiguration = appConfiguration;
         _printerDiscovery = printerDiscovery;
+        _epsonFiscalClient = epsonFiscalClient;
         _httpClientFactory = httpClientFactory;
         _localPrintAuthTokenProvider = localPrintAuthTokenProvider;
         _logger = logger;
@@ -137,6 +140,9 @@ public class HeartbeatService : IHeartbeatService
     {
         if (string.IsNullOrWhiteSpace(printer.IpAddress))
             return false;
+
+        if (PrinterTypes.IsEpsonFiscal(printer))
+            return await _epsonFiscalClient.IsReachableAsync(printer, cancellationToken).ConfigureAwait(false);
 
         if (PrinterTypes.IsFiscalNet(printer))
             return await IsFiscalNetReachableAsync(printer, cancellationToken).ConfigureAwait(false);

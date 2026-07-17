@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "EpsonBridgeStub": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "EPSON_BRIDGE_STUB_PORT": "9102"
+      }
+    }
+  }
+}

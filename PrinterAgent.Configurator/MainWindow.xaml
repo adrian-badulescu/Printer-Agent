@@ -109,6 +109,10 @@
                          Checked="SetupTypeRadio_OnChecked" />
             <RadioButton x:Name="SetupTypeFiscalNetRadio"
                          GroupName="SetupPrinterType"
+                         Margin="0,0,0,6"
+                         Checked="SetupTypeRadio_OnChecked" />
+            <RadioButton x:Name="SetupTypeEpsonFiscalRadio"
+                         GroupName="SetupPrinterType"
                          Checked="SetupTypeRadio_OnChecked" />
           </StackPanel>
           <TextBlock x:Name="SetupTypeHintText"
@@ -175,6 +179,7 @@
                     SelectionChanged="PrinterTypeCombo_OnSelectionChanged">
             <ComboBoxItem Tag="escpos" />
             <ComboBoxItem Tag="fiscalnet" />
+            <ComboBoxItem Tag="epson-fiscal" />
           </ComboBox>
           <Label x:Name="IpAddressLabel" Target="{Binding ElementName=IpAddressBox}" />
           <TextBox x:Name="IpAddressBox"
@@ -192,7 +197,10 @@
             <TextBox x:Name="FiscalDepartmentBox" Text="1" Padding="8" Margin="0,0,0,8" />
             <Label x:Name="FiscalTimeoutLabel" Target="{Binding ElementName=FiscalTimeoutBox}" />
             <TextBox x:Name="FiscalTimeoutBox" Text="120000" Padding="8" Margin="0,0,0,8" />
+            <Label x:Name="FiscalLogicalNameLabel" Target="{Binding ElementName=FiscalLogicalNameBox}" />
+            <TextBox x:Name="FiscalLogicalNameBox" Text="1" Padding="8" Margin="0,0,0,8" />
             <TextBlock x:Name="FiscalNetHintText" TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+            <TextBlock x:Name="EpsonFiscalHintText" TextWrapping="Wrap" Foreground="#666" FontSize="12" Visibility="Collapsed" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
             <Button x:Name="TestPrintButton"

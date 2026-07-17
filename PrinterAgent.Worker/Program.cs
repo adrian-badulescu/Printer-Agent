@@ -85,6 +85,13 @@ try
                 client.Timeout = TimeSpan.FromMinutes(3);
             });
 
+            services.AddHttpClient("FpMate")
+                .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback = static (_, _, _, _) => true,
+                })
+                .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromMinutes(3));
+
             // Application
             services.AddTransient<IPrintJobProcessor, PrintJobProcessor>();
             services.AddTransient<ILocalPrintJobHandler, LocalPrintJobHandler>();
@@ -96,7 +103,11 @@ try
             services.AddTransient<EscPosPrinterService>();
             services.AddTransient<FiscalNetHttpClient>();
             services.AddTransient<FiscalNetPrinterService>();
+            services.AddTransient<FpMateSoapClient>();
+            services.AddTransient<IEpsonFiscalClient>(sp => sp.GetRequiredService<FpMateSoapClient>());
+            services.AddTransient<EpsonFiscalPrinterService>();
             services.AddTransient<IFiscalCommandHandler, FiscalNetCommandHandler>();
+            services.AddTransient<IFiscalCommandHandler, EpsonFiscalCommandHandler>();
             services.AddSingleton<IFiscalCommandRouter, FiscalCommandRouter>();
             services.AddSingleton<IPrinterServiceFactory, PrinterServiceFactory>();
             services.AddTransient<IUpdateService, UpdateService>();

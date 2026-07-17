@@ -18,10 +18,14 @@ public sealed class PrinterServiceFactoryTests
         var fiscalNet = new FiscalNetPrinterService(
             null!,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<FiscalNetPrinterService>.Instance);
-        var factory = new PrinterServiceFactory(escPos, fiscalNet);
+        var epsonFiscal = new EpsonFiscalPrinterService(
+            null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<EpsonFiscalPrinterService>.Instance);
+        var factory = new PrinterServiceFactory(escPos, fiscalNet, epsonFiscal);
 
         Assert.Same(escPos, factory.Resolve(new Printer { Type = PrinterTypes.EscPos }));
         Assert.Same(fiscalNet, factory.Resolve(new Printer { Type = PrinterTypes.FiscalNet }));
+        Assert.Same(epsonFiscal, factory.Resolve(new Printer { Type = PrinterTypes.EpsonFiscal }));
         Assert.Same(fiscalNet, factory.Resolve(new Printer { Type = PrinterTypes.EscPos, Port = 65400 }));
         Assert.Same(escPos, factory.Resolve(new Printer()));
     }
