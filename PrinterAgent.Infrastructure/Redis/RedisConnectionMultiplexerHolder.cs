@@ -50,14 +50,6 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
 
             _multiplexer = ConnectionMultiplexer.Connect(connectionString);
 
-            // #region agent log
-            DebugSessionLog.Write("B", "RedisConnectionMultiplexerHolder.cs:Get", "redis connection opened", new
-            {
-                conn = _appConfiguration.RedisConnectionSummary,
-                isConnected = _multiplexer.IsConnected,
-            });
-            // #endregion
-
             return _multiplexer;
         }
     }

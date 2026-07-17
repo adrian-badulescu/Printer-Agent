@@ -62,16 +62,6 @@ public class AgentWorker : BackgroundService
 
         _logger.LogInformation("Agent Worker starting. AgentId: {AgentId}, RestaurantId: {RestaurantId}", agentId, restaurantId);
 
-        // #region agent log
-        DebugSessionLog.Write("E", "AgentWorker.cs:ExecuteAsync", "worker started", new
-        {
-            agentId,
-            restaurantId,
-            hasRedisCredentials = _redisRuntimeCredentials.HasCredentials,
-            redisSummary = _appConfiguration.RedisConnectionSummary,
-        });
-        // #endregion
-
         var printerCount = _appConfiguration.Printers.Count;
         if (printerCount == 0)
         {
@@ -121,12 +111,6 @@ public class AgentWorker : BackgroundService
                 await _redisRuntimeCredentials.LoadAsync(stoppingToken).ConfigureAwait(false);
                 if (!_redisRuntimeCredentials.HasCredentials)
                 {
-                    // #region agent log
-                    DebugSessionLog.Write("C", "AgentWorker.cs:RunRedisConsumerSafelyAsync", "waiting for redis credentials", new
-                    {
-                        restaurantId,
-                    });
-                    // #endregion
 
                     _logger.LogWarning(
                         "Redis stream consumer waiting for per-restaurant credentials (enrollment service is provisioning).");
@@ -145,16 +129,16 @@ public class AgentWorker : BackgroundService
 
             try
             {
-                // #region agent log
-                DebugSessionLog.Write("B", "AgentWorker.cs:RunRedisConsumerSafelyAsync", "starting redis consumer", new
-                {
-                    restaurantId,
-                    redisSummary = _appConfiguration.RedisConnectionSummary,
-                });
-                // #endregion
 
                 await _redisConsumer.StartConsumingAsync(restaurantId, stoppingToken).ConfigureAwait(false);
-                return;
+
+                if (stoppingToken.IsCancellationRequested)
+                    return;
+
+                _logger.LogWarning(
+                    "Redis stream consumer exited unexpectedly (RestaurantId={RestaurantId}); restarting.",
+                    restaurantId);
+                retryDelay = TimeSpan.FromSeconds(5);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -162,14 +146,6 @@ public class AgentWorker : BackgroundService
             }
             catch (RedisConnectionException ex)
             {
-                // #region agent log
-                DebugSessionLog.Write("B", "AgentWorker.cs:RunRedisConsumerSafelyAsync", "redis connection exception", new
-                {
-                    restaurantId,
-                    exType = ex.GetType().Name,
-                    exMessage = ex.Message,
-                });
-                // #endregion
 
                 _redisHolder.Reset();
                 _logger.LogError(

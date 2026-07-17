@@ -451,13 +451,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             await _redisRuntimeCredentials.LoadAsync(cancellationToken).ConfigureAwait(false);
             if (!forceRefresh && _redisRuntimeCredentials.HasCredentials)
             {
-                // #region agent log
-                DebugSessionLog.Write("C", "AgentEnrollmentHostedService.cs:TryProvisionRedisCredentialsIfNeededAsync", "skipped redis cred refresh", new
-                {
-                    forceRefresh,
-                    hasCredentials = true,
-                });
-                // #endregion
                 return;
             }
 
@@ -508,16 +501,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 creds.User,
                 creds.Host,
                 creds.Port);
-
-            // #region agent log
-            DebugSessionLog.Write("C", "AgentEnrollmentHostedService.cs:TryProvisionRedisCredentialsIfNeededAsync", "redis credentials provisioned", new
-            {
-                forceRefresh,
-                user = creds.User,
-                host = creds.Host,
-                port = creds.Port,
-            });
-            // #endregion
         }
         catch (Exception ex)
         {
@@ -682,15 +665,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
 
             _logger.LogInformation("WireGuard provisioning: wrote config to {Path}.", path);
 
-            // #region agent log
-            DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryProvisionWireGuardConfAsync", "wrote wireguard conf", new
-            {
-                path,
-                confChanged = !string.Equals(existing, conf, StringComparison.Ordinal),
-                serviceExists = _wireGuardTunnelManager.ServiceExists(ResolveTunnelServiceName(opt, path) ?? string.Empty),
-            });
-            // #endregion
-
             if (opt.InstallTunnelServiceIfMissing)
                 await TryInstallTunnelServiceAsync(opt, path, cancellationToken, reinstallIfExists: true).ConfigureAwait(false);
             else
@@ -722,13 +696,6 @@ public sealed class AgentEnrollmentHostedService : IHostedService
             {
                 if (!reinstallIfExists)
                 {
-                    // #region agent log
-                    DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryInstallTunnelServiceAsync", "tunnel already exists no reinstall", new
-                    {
-                        serviceName,
-                        confPath,
-                    });
-                    // #endregion
 
                     _logger.LogInformation("WireGuard provisioning: tunnel service {Service} already exists.", serviceName);
                     TryStartTunnelService(opt, serviceName);
@@ -739,15 +706,8 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                     "WireGuard provisioning: reinstalling tunnel service {Service} after .conf update.",
                     serviceName);
 
-                // #region agent log
-                DebugSessionLog.Write("A", "AgentEnrollmentHostedService.cs:TryInstallTunnelServiceAsync", "reinstalling tunnel", new
-                {
-                    serviceName,
-                    confPath,
-                });
-                // #endregion
-
                 await _wireGuardTunnelManager.UninstallTunnelServiceAsync(tunnelName, cancellationToken).ConfigureAwait(false);
+                await WaitForTunnelServiceRemovedAsync(serviceName, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogInformation(
@@ -755,12 +715,71 @@ public sealed class AgentEnrollmentHostedService : IHostedService
                 serviceName,
                 confPath);
 
-            await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("already installed", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "WireGuard provisioning: install reported tunnel still present; uninstalling and retrying once.");
+                await _wireGuardTunnelManager.UninstallTunnelServiceAsync(tunnelName, cancellationToken).ConfigureAwait(false);
+                await WaitForTunnelServiceRemovedAsync(serviceName, cancellationToken).ConfigureAwait(false);
+                await _wireGuardTunnelManager.InstallTunnelServiceAsync(confPath, cancellationToken).ConfigureAwait(false);
+            }
+
             TryStartTunnelService(opt, serviceName);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "WireGuard provisioning: failed to install tunnel service from {Path}.", confPath);
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private async Task WaitForTunnelServiceRemovedAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 20; attempt++)
+        {
+            if (!_wireGuardTunnelManager.ServiceExists(serviceName))
+                return;
+
+            TryStopTunnelService(serviceName);
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+        }
+
+        _logger.LogWarning(
+            "WireGuard provisioning: tunnel service {Service} still present after uninstall; install may fail.",
+            serviceName);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private void TryStopTunnelService(string serviceName)
+    {
+        if (string.IsNullOrWhiteSpace(serviceName))
+            return;
+
+        try
+        {
+            using var sc = new ServiceController(serviceName);
+            if (sc.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending)
+            {
+                _logger.LogInformation("WireGuard provisioning: stopping service {Service}...", serviceName);
+                sc.Stop();
+                sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "WireGuard provisioning: could not stop service {Service}.", serviceName);
         }
     }
 

@@ -4,8 +4,6 @@ using PrinterAgent.Application.Interfaces;
 using PrinterAgent.Application.Networking;
 using PrinterAgent.Domain;
 
-namespace PrinterAgent.Application.UseCases;
-
 public interface IHeartbeatService
 {
     Task SendHeartbeatAsync(CancellationToken cancellationToken = default);

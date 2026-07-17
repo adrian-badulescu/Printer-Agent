@@ -11,6 +11,7 @@ using PrinterAgent.Infrastructure.Http;
 using PrinterAgent.Infrastructure.LocalApi;
 using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Networking;
+using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Printing;
 using PrinterAgent.Infrastructure.Printing.Fiscal;
 using PrinterAgent.Infrastructure.Redis;
