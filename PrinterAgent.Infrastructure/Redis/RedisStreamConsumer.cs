@@ -46,11 +46,17 @@ public class RedisStreamConsumer : IRedisStreamConsumer
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                await _sessionStore.LoadAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
+        }
+
+        var agentId = _sessionStore.AgentId;
+        if (string.IsNullOrWhiteSpace(agentId))
+            return;
 
         IConnectionMultiplexer redis = _redisHolder.Get();
         IDatabase db = redis.GetDatabase();
@@ -73,7 +79,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
         {
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             throw;
         }
