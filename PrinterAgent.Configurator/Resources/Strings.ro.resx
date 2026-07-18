@@ -127,6 +127,21 @@
   <data name="Port_Label" xml:space="preserve">
     <value>Port TCP</value>
   </data>
+  <data name="EpsonUseHttps_Label" xml:space="preserve">
+    <value>Folosește HTTPS (SSL/TLS) pentru fpmate.cgi</value>
+  </data>
+  <data name="EpsonWebUser_Label" xml:space="preserve">
+    <value>Utilizator web server (opțional, Basic Auth)</value>
+  </data>
+  <data name="EpsonWebPassword_Label" xml:space="preserve">
+    <value>Parolă web server (opțional)</value>
+  </data>
+  <data name="EpsonWebPassword_Hint" xml:space="preserve">
+    <value>Lăsați parola goală la actualizarea unei imprimante existente pentru a păstra parola din agent.json.</value>
+  </data>
+  <data name="PortLabel_Https" xml:space="preserve">
+    <value>Port HTTPS</value>
+  </data>
   <data name="TestPrintButton" xml:space="preserve">
     <value>Test print</value>
   </data>

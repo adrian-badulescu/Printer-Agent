@@ -270,6 +270,21 @@
   <data name="FiscalTimeout_Label" xml:space="preserve">
     <value>Timeout (ms)</value>
   </data>
+  <data name="EpsonUseHttps_Label" xml:space="preserve">
+    <value>Use HTTPS (SSL/TLS) for fpmate.cgi</value>
+  </data>
+  <data name="EpsonWebUser_Label" xml:space="preserve">
+    <value>Web server user (optional, Basic Auth)</value>
+  </data>
+  <data name="EpsonWebPassword_Label" xml:space="preserve">
+    <value>Web server password (optional)</value>
+  </data>
+  <data name="EpsonWebPassword_Hint" xml:space="preserve">
+    <value>Leave password blank when updating an existing printer to keep the saved password in agent.json.</value>
+  </data>
+  <data name="PortLabel_Https" xml:space="preserve">
+    <value>HTTPS port</value>
+  </data>
   <data name="Validation_PrinterName" xml:space="preserve">
     <value>Enter the printer display name.</value>
   </data>

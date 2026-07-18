@@ -7,6 +7,8 @@ namespace PrinterAgent.Infrastructure.Printing.Fiscal;
 
 public static class EpsonFiscalXmlBuilder
 {
+    private const int FiscalHeaderMessageMaxLength = 46;
+
     public static string BuildPrintXml(PrintJobPayload payload, Printer printer)
     {
         var type = (payload.Type ?? string.Empty).Trim().ToLowerInvariant();
@@ -36,6 +38,7 @@ public static class EpsonFiscalXmlBuilder
         var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
         var sb = new StringBuilder();
         sb.Append("<printerFiscalReceipt>");
+        AppendFiscalHeaderMessages(sb, op, payload);
         sb.Append(CultureInfo.InvariantCulture, $"<beginFiscalReceipt operator=\"{op}\" />");
 
         foreach (var item in payload.Items)
@@ -142,6 +145,28 @@ public static class EpsonFiscalXmlBuilder
         return total;
     }
 
+    private static void AppendFiscalHeaderMessages(StringBuilder sb, int op, PrintJobPayload payload)
+    {
+        var index = 1;
+        index = AppendFiscalHeaderMessage(sb, op, index, payload.RestaurantName);
+        if (!string.IsNullOrWhiteSpace(payload.OrderId)
+            && !payload.OrderId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
+        {
+            index = AppendFiscalHeaderMessage(sb, op, index, "Order: " + payload.OrderId.Trim());
+        }
+    }
+
+    private static int AppendFiscalHeaderMessage(StringBuilder sb, int op, int index, string? text)
+    {
+        if (index is < 1 or > 9 || string.IsNullOrWhiteSpace(text))
+            return index;
+
+        var message = Truncate(text.Trim(), FiscalHeaderMessageMaxLength);
+        sb.Append(CultureInfo.InvariantCulture,
+            $"<printRecMessage operator=\"{op}\" messageType=\"1\" index=\"{index}\" message=\"{Escape(message)}\" />");
+        return index + 1;
+    }
+
     private static void AppendPrintNormal(StringBuilder sb, int op, string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -150,6 +175,9 @@ public static class EpsonFiscalXmlBuilder
         sb.Append(CultureInfo.InvariantCulture,
             $"<printNormal operator=\"{op}\" font=\"2\" data=\"{Escape(text)}\" />");
     }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength];
 
     private static string FormatBillLine(PrintJobItem item)
     {

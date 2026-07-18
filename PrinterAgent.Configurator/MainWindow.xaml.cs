@@ -254,6 +254,14 @@ public partial class MainWindow
             FiscalDepartmentLabel.Content = UiStrings.Get("FiscalDepartment_Label");
         if (FiscalTimeoutLabel != null)
             FiscalTimeoutLabel.Content = UiStrings.Get("FiscalTimeout_Label");
+        if (EpsonUseHttpsCheckBox != null)
+            EpsonUseHttpsCheckBox.Content = UiStrings.Get("EpsonUseHttps_Label");
+        if (EpsonWebUserLabel != null)
+            EpsonWebUserLabel.Content = UiStrings.Get("EpsonWebUser_Label");
+        if (EpsonWebPasswordLabel != null)
+            EpsonWebPasswordLabel.Content = UiStrings.Get("EpsonWebPassword_Label");
+        if (EpsonWebPasswordHintText != null)
+            EpsonWebPasswordHintText.Text = UiStrings.Get("EpsonWebPassword_Hint");
         PortLabel.Content = UiStrings.Get("Port_Label");
         SaveHintText.Text = UiStrings.Get("SaveHintText");
         ApplyPrinterTypeComboLabels();
@@ -452,7 +460,6 @@ public partial class MainWindow
         var fiscal = IsFiscalPrinterSelected();
         var epson = IsEpsonFiscalSelected();
         FiscalSettingsPanel.Visibility = fiscal ? Visibility.Visible : Visibility.Collapsed;
-        PortLabel.Content = fiscal ? UiStrings.Get("PortLabel_Http") : UiStrings.Get("Port_Label");
         if (FiscalNetHintText != null)
             FiscalNetHintText.Visibility = IsFiscalNetSelected() ? Visibility.Visible : Visibility.Collapsed;
         if (EpsonFiscalHintText != null)
@@ -461,6 +468,10 @@ public partial class MainWindow
             FiscalLogicalNameLabel.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
         if (FiscalLogicalNameBox != null)
             FiscalLogicalNameBox.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
+        if (EpsonFiscalOptionsPanel != null)
+            EpsonFiscalOptionsPanel.Visibility = epson ? Visibility.Visible : Visibility.Collapsed;
+
+        ApplyEpsonPortLabel(epson);
 
         if (fiscal)
         {
@@ -485,6 +496,9 @@ public partial class MainWindow
             }
             else if (IsFiscalNetSelected() && PortBox.Text.Trim() is "" or "9100")
                 PortBox.Text = PrinterTypes.DefaultFiscalNetPort.ToString();
+
+            if (epson)
+                SyncEpsonHttpsCheckBoxFromPort();
         }
         else if (PortBox.Text.Trim() is "65400" or "9102" or "443")
         {
@@ -678,7 +692,8 @@ public partial class MainWindow
                 {
                     _ = int.TryParse(FiscalLogicalNameBox.Text.Trim(), out var operatorId);
                     fiscal["operatorId"] = operatorId is >= 1 and <= 12 ? operatorId : 1;
-                    fiscal["useHttps"] = port != PrinterTypes.DefaultEpsonFpMateDevPort;
+                    fiscal["useHttps"] = EpsonUseHttpsCheckBox.IsChecked == true;
+                    ApplyEpsonBasicAuthToFiscal(fiscal, replaced);
                 }
 
                 entry["fiscal"] = fiscal;
@@ -953,6 +968,10 @@ public partial class MainWindow
         PrinterIdBox.Text = "";
         PortBox.Text = "9100";
         IpAddressBox.Text = "";
+        EpsonWebUserBox.Text = "";
+        EpsonWebPasswordBox.Password = "";
+        if (EpsonUseHttpsCheckBox != null)
+            EpsonUseHttpsCheckBox.IsChecked = true;
         SetupTypeEscPosRadio.IsChecked = true;
         _printerIdManual = false;
         _skipEnrollmentMode = true;
@@ -960,5 +979,80 @@ public partial class MainWindow
         ApplySetupTypeUi();
         SyncPrinterTypeComboFromSetup();
         UpdateStepUi();
+    }
+
+    private void EpsonUseHttpsCheckBox_OnChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || EpsonUseHttpsCheckBox is null || PortBox is null)
+            return;
+
+        ApplyEpsonPortLabel(IsEpsonFiscalSelected());
+
+        if (!IsEpsonFiscalSelected())
+            return;
+
+        var useHttps = EpsonUseHttpsCheckBox.IsChecked == true;
+        var portText = PortBox.Text.Trim();
+        if (useHttps && portText is "" or "9102")
+            PortBox.Text = PrinterTypes.DefaultEpsonFpMatePort.ToString();
+        else if (!useHttps && portText is "" or "443")
+            PortBox.Text = PrinterTypes.DefaultEpsonFpMateDevPort.ToString();
+    }
+
+    private void ApplyEpsonPortLabel(bool epson)
+    {
+        if (PortLabel is null)
+            return;
+
+        if (!epson)
+        {
+            PortLabel.Content = IsFiscalPrinterSelected()
+                ? UiStrings.Get("PortLabel_Http")
+                : UiStrings.Get("Port_Label");
+            return;
+        }
+
+        PortLabel.Content = EpsonUseHttpsCheckBox?.IsChecked == true
+            ? UiStrings.Get("PortLabel_Https")
+            : UiStrings.Get("PortLabel_Http");
+    }
+
+    private void SyncEpsonHttpsCheckBoxFromPort()
+    {
+        if (EpsonUseHttpsCheckBox is null || PortBox is null)
+            return;
+
+        if (int.TryParse(PortBox.Text.Trim(), out var port))
+            EpsonUseHttpsCheckBox.IsChecked = port != PrinterTypes.DefaultEpsonFpMateDevPort;
+        else
+            EpsonUseHttpsCheckBox.IsChecked = true;
+
+        ApplyEpsonPortLabel(true);
+    }
+
+    private void ApplyEpsonBasicAuthToFiscal(JsonObject fiscal, JsonObject? replacedPrinter)
+    {
+        var webUser = EpsonWebUserBox.Text.Trim();
+        if (!string.IsNullOrWhiteSpace(webUser))
+            fiscal["webUser"] = webUser;
+
+        var webPassword = EpsonWebPasswordBox.Password;
+        if (!string.IsNullOrWhiteSpace(webPassword))
+        {
+            fiscal["webPassword"] = webPassword;
+            return;
+        }
+
+        var previousPassword = GetFiscalString(replacedPrinter, "webPassword", "WebPassword");
+        if (!string.IsNullOrWhiteSpace(previousPassword))
+            fiscal["webPassword"] = previousPassword;
+    }
+
+    private static string? GetFiscalString(JsonObject? printer, string camelKey, string pascalKey)
+    {
+        if (printer?["fiscal"] is not JsonObject fiscal)
+            return null;
+
+        return fiscal[camelKey]?.GetValue<string>() ?? fiscal[pascalKey]?.GetValue<string>();
     }
 }
