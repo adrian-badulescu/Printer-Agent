@@ -140,7 +140,17 @@ public class HeartbeatService : IHeartbeatService
             return false;
 
         if (PrinterTypes.IsEpsonFiscal(printer))
-            return await _epsonFiscalClient.IsReachableAsync(printer, cancellationToken).ConfigureAwait(false);
+        {
+            try
+            {
+                return await _epsonFiscalClient.IsReachableAsync(printer, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Epson fiscal reachability probe failed for printer {PrinterId}.", printer.Id);
+                return false;
+            }
+        }
 
         if (PrinterTypes.IsFiscalNet(printer))
             return await IsFiscalNetReachableAsync(printer, cancellationToken).ConfigureAwait(false);

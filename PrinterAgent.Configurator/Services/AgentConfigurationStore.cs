@@ -45,31 +45,9 @@ public sealed class AgentConfigurationStore
     {
         ClearProgramDataRedisPasswordForAcl(root);
         AgentProgramDataAccess.EnsureWritable();
-        Directory.CreateDirectory(AgentProgramData.Root);
 
         var json = root.ToJsonString(WriteOptions);
-        var path = AgentJsonPath;
-        var temp = path + ".tmp";
-
-        try
-        {
-            File.WriteAllText(temp, json);
-            if (File.Exists(path))
-                File.Replace(temp, path, null);
-            else
-                File.Move(temp, path);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            throw new IOException(
-                $"Cannot write to {path}. Re-run the installer as Administrator, or execute scripts\\Setup-ProgramData.ps1 elevated, then retry.",
-                ex);
-        }
-        catch (IOException ex) when (temp != null && File.Exists(temp))
-        {
-            try { File.Delete(temp); } catch { /* ignore */ }
-            throw;
-        }
+        AgentProgramDataJsonWriter.WriteAtomic(AgentJsonPath, json);
     }
 
     /// <summary>Empty <c>Redis.Password</c> in ProgramData signals ACL credentials from backend after enroll.</summary>

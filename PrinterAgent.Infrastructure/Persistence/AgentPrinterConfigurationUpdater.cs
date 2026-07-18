@@ -83,7 +83,7 @@ public sealed class AgentPrinterConfigurationUpdater : IAgentPrinterConfiguratio
             }
 
             Directory.CreateDirectory(AgentProgramData.Root);
-            File.WriteAllText(AgentJsonPath, root.ToJsonString(WriteOptions));
+            AgentProgramDataJsonWriter.WriteAtomic(AgentJsonPath, root.ToJsonString(WriteOptions));
             return true;
         }
         catch (Exception ex)

@@ -5,42 +5,78 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 var receiptCounter = 0;
-
-app.MapPost("/cgi-bin/fpmate.cgi", async (HttpRequest request) =>
-{
-    var body = await new StreamReader(request.Body, Encoding.UTF8).ReadToEndAsync();
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] POST /cgi-bin/fpmate.cgi");
-
-    var innerXml = ExtractSoapBody(body);
-    if (innerXml.Contains("openDrawer", StringComparison.OrdinalIgnoreCase))
-    {
-        return Results.Content(BuildSoapResponse(success: true), "text/xml", Encoding.UTF8);
-    }
-
-    if (innerXml.Contains("queryPrinterStatus", StringComparison.OrdinalIgnoreCase))
-    {
-        return Results.Content(BuildSoapResponse(success: true), "text/xml", Encoding.UTF8);
-    }
-
-    if (innerXml.Contains("printerFiscalReceipt", StringComparison.OrdinalIgnoreCase)
-        || innerXml.Contains("printerNonFiscal", StringComparison.OrdinalIgnoreCase))
-    {
-        receiptCounter++;
-        return Results.Content(
-            BuildSoapResponse(success: true, receiptNumber: receiptCounter.ToString("D4")),
-            "text/xml",
-            Encoding.UTF8);
-    }
-
-    return Results.Content(BuildSoapResponse(success: false, code: "UNSUPPORTED"), "text/xml", Encoding.UTF8);
-});
+var logger = new FpMateStubRequestLogger(FpMateStubRequestLogger.ResolveLogPath());
 
 var port = int.TryParse(Environment.GetEnvironmentVariable("FPMATE_STUB_PORT"), out var p)
     ? p
     : PrinterAgent.Domain.PrinterTypes.DefaultEpsonFpMateDevPort;
 
-Console.WriteLine($"FpMate stub listening on http://127.0.0.1:{port}/cgi-bin/fpmate.cgi");
-app.Run($"http://127.0.0.1:{port}");
+var bindHost = Environment.GetEnvironmentVariable("FPMATE_STUB_BIND")?.Trim();
+if (string.IsNullOrWhiteSpace(bindHost))
+    bindHost = "0.0.0.0";
+
+var listenUrl = $"http://{bindHost}:{port}";
+
+app.MapPost("/cgi-bin/fpmate.cgi", async (HttpRequest request) =>
+{
+    var body = await new StreamReader(request.Body, Encoding.UTF8).ReadToEndAsync();
+    var innerXml = ExtractSoapBody(body);
+    var action = ClassifyAction(innerXml);
+
+    string responseXml;
+    string responseSummary;
+    switch (action)
+    {
+        case "openDrawer":
+        case "queryPrinterStatus":
+            responseXml = BuildSoapResponse(success: true);
+            responseSummary = $"{action} success=true";
+            break;
+        case "fiscalReceipt":
+        case "nonFiscal":
+            receiptCounter++;
+            responseXml = BuildSoapResponse(success: true, receiptNumber: receiptCounter.ToString("D4"));
+            responseSummary = $"{action} success=true receipt={receiptCounter:D4}";
+            break;
+        default:
+            responseXml = BuildSoapResponse(success: false, code: "UNSUPPORTED");
+            responseSummary = "unsupported success=false code=UNSUPPORTED";
+            break;
+    }
+
+    logger.LogRequest(request, body, innerXml, action, responseSummary);
+    return Results.Content(responseXml, "text/xml", Encoding.UTF8);
+});
+
+app.MapFallback(async (HttpRequest request) =>
+{
+    var body = request.ContentLength > 0
+        ? await new StreamReader(request.Body, Encoding.UTF8).ReadToEndAsync()
+        : string.Empty;
+    logger.LogRequest(
+        request,
+        body,
+        innerXml: string.Empty,
+        action: $"fallback-{request.Method}",
+        responseSummary: "404 Not Found");
+    return Results.NotFound("FpMate stub only handles POST /cgi-bin/fpmate.cgi");
+});
+
+logger.LogStartup($"{listenUrl}/cgi-bin/fpmate.cgi", FpMateStubRequestLogger.ResolveLogPath());
+app.Run(listenUrl);
+
+static string ClassifyAction(string innerXml)
+{
+    if (innerXml.Contains("openDrawer", StringComparison.OrdinalIgnoreCase))
+        return "openDrawer";
+    if (innerXml.Contains("queryPrinterStatus", StringComparison.OrdinalIgnoreCase))
+        return "queryPrinterStatus";
+    if (innerXml.Contains("printerFiscalReceipt", StringComparison.OrdinalIgnoreCase))
+        return "fiscalReceipt";
+    if (innerXml.Contains("printerNonFiscal", StringComparison.OrdinalIgnoreCase))
+        return "nonFiscal";
+    return "unsupported";
+}
 
 static string ExtractSoapBody(string soap)
 {

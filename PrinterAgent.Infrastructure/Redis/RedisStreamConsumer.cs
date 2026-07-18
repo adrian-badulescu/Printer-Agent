@@ -212,6 +212,7 @@ public class RedisStreamConsumer : IRedisStreamConsumer
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled error processing stream message {MessageId}; acknowledging to avoid PEL stall.", messageId);
+            await TryMarkJobFailedAsync(messageId, cancellationToken).ConfigureAwait(false);
             try
             {
                 await db.StreamAcknowledgeAsync(streamName, groupName, message.Id).ConfigureAwait(false);

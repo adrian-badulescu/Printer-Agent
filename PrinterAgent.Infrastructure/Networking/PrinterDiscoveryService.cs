@@ -52,6 +52,15 @@ public sealed class PrinterDiscoveryService : IPrinterDiscoveryService
         Printer printer,
         CancellationToken cancellationToken = default)
     {
+        if (ShouldSkipArpIpRefresh(printer))
+        {
+            return new PrinterRecoveryResult
+            {
+                Recovered = false,
+                TelemetryNote = "fiscal_or_loopback_skip_recovery"
+            };
+        }
+
         // --- Fast path: MAC known → ARP table only (no subnet scan cooldown) ---
         var macNorm = PrinterMacNormalizer.Normalize(printer.MacAddress);
         if (!string.IsNullOrEmpty(macNorm) &&
@@ -283,6 +292,12 @@ public sealed class PrinterDiscoveryService : IPrinterDiscoveryService
         foreach (var p in printers)
         {
             var copy = ClonePrinter(p, p.IpAddress, p.FallbackProvisional, p.LastDiscoveryNote);
+            if (ShouldSkipArpIpRefresh(p))
+            {
+                list.Add(copy);
+                continue;
+            }
+
             var macNorm = PrinterMacNormalizer.Normalize(p.MacAddress);
             if (!string.IsNullOrEmpty(macNorm) &&
                 IpHlpNative.TryFindIpv4ForMac(macNorm, out var nip) &&
@@ -302,6 +317,29 @@ public sealed class PrinterDiscoveryService : IPrinterDiscoveryService
         }
 
         return list;
+    }
+
+    private static bool ShouldSkipArpIpRefresh(Printer printer)
+    {
+        if (PrinterTypes.IsEpsonFiscal(printer) || PrinterTypes.IsFiscalNet(printer))
+            return true;
+
+        if (IsLoopbackAddress(printer.IpAddress))
+            return true;
+
+        return false;
+    }
+
+    private static bool IsLoopbackAddress(string? ipAddress)
+    {
+        if (string.IsNullOrWhiteSpace(ipAddress))
+            return false;
+
+        if (string.Equals(ipAddress.Trim(), "localhost", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return IPAddress.TryParse(ipAddress.Trim(), out var ip)
+               && IPAddress.IsLoopback(ip);
     }
 
     /// <summary>Try .x±1, .x±2, … on the same /24 (config row’s subnet) — fixes stale ARP + wrong last octet.</summary>

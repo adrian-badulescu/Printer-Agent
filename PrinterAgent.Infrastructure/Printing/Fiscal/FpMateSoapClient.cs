@@ -57,16 +57,29 @@ public sealed class FpMateSoapClient : IEpsonFiscalClient
         var client = CreateClient(printer, probeTimeoutSeconds);
         _logger.LogDebug("FpMate SOAP POST {Url}", url);
 
-        using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        HttpResponseMessage response;
+        try
         {
-            _logger.LogWarning("FpMate HTTP {Status}: {Body}", (int)response.StatusCode, Truncate(body));
-            return FpMateFiscalResponse.Failed(((int)response.StatusCode).ToString(), Truncate(body), body);
+            response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "FpMate HTTP request failed for printer {PrinterId} at {Url}.", printer.Id, url);
+            return FpMateFiscalResponse.Failed("FPMATE_UNREACHABLE", ex.Message);
         }
 
-        return FpMateFiscalResponse.Parse(body);
+        using (response)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("FpMate HTTP {Status}: {Body}", (int)response.StatusCode, Truncate(body));
+                return FpMateFiscalResponse.Failed(((int)response.StatusCode).ToString(), Truncate(body), body);
+            }
+
+            return FpMateFiscalResponse.Parse(body);
+        }
     }
 
     internal static string WrapSoapEnvelope(string innerXml) =>

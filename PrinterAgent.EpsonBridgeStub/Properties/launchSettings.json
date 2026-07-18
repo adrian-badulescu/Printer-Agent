@@ -3,7 +3,8 @@
     "EpsonBridgeStub": {
       "commandName": "Project",
       "environmentVariables": {
-        "EPSON_BRIDGE_STUB_PORT": "9102"
+        "FPMATE_STUB_PORT": "9102",
+        "FPMATE_STUB_BIND": "0.0.0.0"
       }
     }
   }
