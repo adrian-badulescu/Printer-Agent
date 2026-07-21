@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using PrinterAgent.Application.Observability;
 using PrinterAgent.Domain;
 
 namespace PrinterAgent.Infrastructure.Printing.Fiscal;
@@ -24,7 +23,7 @@ public sealed class FiscalNetHttpClient
         CancellationToken cancellationToken = default)
     {
         var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
-        var scheme = fiscal.UseHttps ? "https" : "http";
+        var scheme = PrinterTypes.ResolveFiscalHttpScheme(printer);
         var port = printer.Port > 0 ? printer.Port : 65400;
         var host = string.IsNullOrWhiteSpace(printer.IpAddress) ? "127.0.0.1" : printer.IpAddress.Trim();
         var timeoutMs = fiscal.TimeoutMs >= 5000 ? fiscal.TimeoutMs : 120_000;
@@ -42,25 +41,11 @@ public sealed class FiscalNetHttpClient
 
         _logger.LogDebug("FiscalNet POST {Url} lines={Count}", url, receiptLines.Length);
 
-        using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        HttpResponseMessage response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
-        // #region agent log
-        var hasReceiptStatusJson = body.Contains("ReceiptStatus", StringComparison.OrdinalIgnoreCase);
-        DebugSessionLog.Write(
-            hasReceiptStatusJson ? "H1" : "H5",
-            "FiscalNetHttpClient.SendReceiptAsync:response",
-            "fiscalnet http response",
-            new
-            {
-                printerId = printer.Id,
-                url,
-                statusCode = (int)response.StatusCode,
-                bodySnippet = Truncate(body),
-                hasReceiptStatusJson,
-                lineCount = receiptLines.Length,
-            });
-        // #endregion
+        using (response)
+        {
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -69,6 +54,7 @@ public sealed class FiscalNetHttpClient
         }
 
         return ParseResponse(body);
+        }
     }
 
     public static FiscalNetResponse ParseResponse(string body)

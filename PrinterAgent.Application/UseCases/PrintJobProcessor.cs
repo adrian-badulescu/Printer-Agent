@@ -119,36 +119,12 @@ public class PrintJobProcessor : IPrintJobProcessor
         PrintJob job,
         CancellationToken cancellationToken)
     {
-        // #region agent log
-        DebugSessionLog.Write(
-            "H2",
-            "PrintJobProcessor.ExecutePrintAsync:entry",
-            "routing print job",
-            new
-            {
-                jobId = job.RedisMessageId,
-                payloadType = job.Payload?.Type,
-                printerId = printer.Id,
-                printerType = printer.Type,
-                printerPort = printer.Port,
-                isFiscalNet = PrinterTypes.IsFiscalNet(printer),
-            });
-        // #endregion
-
         if (string.Equals(job.Payload?.Type, PrintJobPayloadTypes.FiscalCommand, StringComparison.OrdinalIgnoreCase))
         {
             var payload = job.Payload!;
             var command = (payload.Command ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(command))
                 return PrintJobResult.Failed("MISSING_FISCAL_COMMAND");
-
-            // #region agent log
-            DebugSessionLog.Write(
-                "H2",
-                "PrintJobProcessor.ExecutePrintAsync:fiscal-command",
-                "fiscal command branch",
-                new { command, printerId = printer.Id, port = printer.Port });
-            // #endregion
 
             return await _fiscalCommandRouter.ExecuteAsync(
                 printer,
@@ -157,19 +133,6 @@ public class PrintJobProcessor : IPrintJobProcessor
         }
 
         var printerService = _printerServiceFactory.Resolve(printer);
-        // #region agent log
-        DebugSessionLog.Write(
-            "H2",
-            "PrintJobProcessor.ExecutePrintAsync:printer-service",
-            "resolved printer service",
-            new
-            {
-                service = printerService.GetType().Name,
-                payloadType = job.Payload?.Type,
-                printerId = printer.Id,
-                port = printer.Port,
-            });
-        // #endregion
         return await printerService.PrintAsync(printer, job, cancellationToken).ConfigureAwait(false);
     }
 }

@@ -6,6 +6,14 @@
         "FPMATE_STUB_PORT": "9102",
         "FPMATE_STUB_BIND": "0.0.0.0"
       }
+    },
+    "EpsonBridgeStubHttps": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "FPMATE_STUB_HTTPS": "true",
+        "FPMATE_STUB_PORT": "9102",
+        "FPMATE_STUB_BIND": "0.0.0.0"
+      }
     }
   }
 }

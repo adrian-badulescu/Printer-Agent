@@ -2,7 +2,9 @@ using System.Text;
 
 internal sealed class FpMateStubRequestLogger
 {
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
     private readonly string _logPath;
+    private readonly object _fileLock = new();
     private int _sequence;
 
     public FpMateStubRequestLogger(string logPath)
@@ -43,11 +45,13 @@ internal sealed class FpMateStubRequestLogger
         var seq = Interlocked.Increment(ref _sequence);
         var remote = request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "?";
         var remotePort = request.HttpContext.Connection.RemotePort;
+        var scheme = request.HttpContext.Request.Scheme;
         var soapAction = request.Headers["SOAPAction"].ToString();
         var contentType = request.ContentType ?? "(none)";
         var userAgent = request.Headers.UserAgent.ToString();
 
-        var header = $"#{seq} {DateTime.UtcNow:O} POST {request.Path} from {remote}:{remotePort} action={action} response={responseSummary}";
+        var header =
+            $"#{seq} {DateTime.UtcNow:O} {request.Method} {scheme}://{request.Host}{request.Path} from {remote}:{remotePort} action={action} response={responseSummary}";
         Console.WriteLine(header);
         Console.WriteLine($"  Content-Type: {contentType}");
         if (!string.IsNullOrWhiteSpace(soapAction))
@@ -75,25 +79,50 @@ internal sealed class FpMateStubRequestLogger
         WriteToFile(sb.ToString());
     }
 
-    public void LogStartup(string listenUrl, string logPath)
+    public void LogStartup(
+        string listenUrl,
+        string logPath,
+        bool useHttps = false,
+        string? certThumbprint = null,
+        int port = 0)
     {
+        var tlsLine = useHttps
+            ? $"TLS=self-signed RSA thumbprint={certThumbprint ?? "?"} (agent: fiscal.useHttps=true, same port){Environment.NewLine}"
+            : string.Empty;
+        var portHint = port > 0
+            ? $"Agent must use the SAME port ({port}) in agent.json — not 443 unless stub listens on 443.{Environment.NewLine}" +
+              $"Example FpMate URL: https://<printer-ip>:{port}/cgi-bin/fpmate.cgi{Environment.NewLine}"
+            : string.Empty;
         var line =
             $"{DateTime.UtcNow:O} STUB START listen={listenUrl} log={logPath} pid={Environment.ProcessId}{Environment.NewLine}" +
+            tlsLine +
+            portHint +
             $"Waiting for POST /cgi-bin/fpmate.cgi from Printer Agent (not from backend directly).{Environment.NewLine}" +
-            $"If this file stays empty after print jobs, check worker.log for the FpMate URL (must hit this stub port).{Environment.NewLine}{Environment.NewLine}";
+            $"If requests do not appear here, check worker.log — look for FpMate URL port (worker.log shows refused connection on wrong port).{Environment.NewLine}{Environment.NewLine}";
         Console.WriteLine($"FpMate stub listening on {listenUrl} — log file: {logPath}");
+        if (useHttps)
+            Console.WriteLine($"  HTTPS self-signed cert thumbprint: {certThumbprint}");
         WriteToFile(line);
     }
 
     private void WriteToFile(string text)
     {
-        try
+        lock (_fileLock)
         {
-            File.AppendAllText(_logPath, text, Encoding.UTF8);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[stub] Failed to write log file {_logPath}: {ex.Message}");
+            try
+            {
+                using var stream = new FileStream(
+                    _logPath,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.ReadWrite);
+                using var writer = new StreamWriter(stream, Utf8NoBom);
+                writer.Write(text);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[stub] Failed to write log file {_logPath}: {ex.Message}");
+            }
         }
     }
 

@@ -1,21 +1,43 @@
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Xml.Linq;
-
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-
-var receiptCounter = 0;
-var logger = new FpMateStubRequestLogger(FpMateStubRequestLogger.ResolveLogPath());
+var useHttps = HasTruthyFlag(args, "--https")
+    || IsTruthyEnvironmentVariable("FPMATE_STUB_HTTPS");
 
 var port = int.TryParse(Environment.GetEnvironmentVariable("FPMATE_STUB_PORT"), out var p)
     ? p
-    : PrinterAgent.Domain.PrinterTypes.DefaultEpsonFpMateDevPort;
+    : useHttps
+        ? PrinterAgent.Domain.PrinterTypes.DefaultEpsonFpMatePort
+        : PrinterAgent.Domain.PrinterTypes.DefaultEpsonFpMateDevPort;
 
 var bindHost = Environment.GetEnvironmentVariable("FPMATE_STUB_BIND")?.Trim();
 if (string.IsNullOrWhiteSpace(bindHost))
     bindHost = "0.0.0.0";
 
-var listenUrl = $"http://{bindHost}:{port}";
+if (IsPortInUse(port))
+{
+    WritePortInUseHelp(port);
+    return 1;
+}
+
+var builder = WebApplication.CreateBuilder(args);
+
+X509Certificate2? httpsCertificate = null;
+if (useHttps)
+{
+    httpsCertificate = FpMateStubSelfSignedCertificate.Create(bindHost);
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+        ConfigureKestrelListen(serverOptions, bindHost, port, httpsCertificate));
+}
+
+var app = builder.Build();
+
+var receiptCounter = 0;
+var logger = new FpMateStubRequestLogger(FpMateStubRequestLogger.ResolveLogPath());
 
 app.MapPost("/cgi-bin/fpmate.cgi", async (HttpRequest request) =>
 {
@@ -62,8 +84,91 @@ app.MapFallback(async (HttpRequest request) =>
     return Results.NotFound("FpMate stub only handles POST /cgi-bin/fpmate.cgi");
 });
 
-logger.LogStartup($"{listenUrl}/cgi-bin/fpmate.cgi", FpMateStubRequestLogger.ResolveLogPath());
-app.Run(listenUrl);
+var scheme = useHttps ? "https" : "http";
+var listenUrl = $"{scheme}://{bindHost}:{port}";
+var logPath = FpMateStubRequestLogger.ResolveLogPath();
+
+logger.LogStartup(
+    listenUrl + "/cgi-bin/fpmate.cgi",
+    logPath,
+    useHttps,
+    httpsCertificate?.Thumbprint,
+    port);
+
+try{
+    if (useHttps)
+        app.Run();
+    else
+        app.Run(listenUrl);
+
+    return 0;
+}
+catch (IOException ex) when (IsAddressInUse(ex))
+{
+    WritePortInUseHelp(port);
+    return 1;
+}
+
+static bool IsPortInUse(int port) =>
+    IPGlobalProperties.GetIPGlobalProperties()
+        .GetActiveTcpListeners()
+        .Any(endpoint => endpoint.Port == port);
+
+static bool IsAddressInUse(Exception ex) =>
+    ex is IOException
+    && (ex.InnerException is SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse }
+        || ex.Message.Contains("address already in use", StringComparison.OrdinalIgnoreCase));
+
+static void WritePortInUseHelp(int port)
+{
+    Console.Error.WriteLine($"FpMate stub: port {port} is already in use.");
+    Console.Error.WriteLine("Another stub (HTTP or HTTPS) or another app is listening on this port.");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("Fix:");
+    Console.Error.WriteLine($"  1. Stop the other process:  netstat -ano | findstr \":{port}\"");
+    Console.Error.WriteLine("     then:  taskkill /PID <pid> /F");
+    Console.Error.WriteLine($"  2. Or use another port:  set FPMATE_STUB_PORT=9103");
+    Console.Error.WriteLine("     (update agent.json fiscal port + useHttps to match)");
+}
+static void ConfigureKestrelListen(
+    Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options,
+    string bindHost,
+    int port,
+    X509Certificate2 certificate)
+{
+    void ConfigureListen(Microsoft.AspNetCore.Server.Kestrel.Core.ListenOptions listenOptions) =>
+        listenOptions.UseHttps(new Microsoft.AspNetCore.Server.Kestrel.Https.HttpsConnectionAdapterOptions
+        {
+            ServerCertificate = certificate,
+            SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+        });
+    if (bindHost is "0.0.0.0" or "*" or "+")
+    {
+        options.ListenAnyIP(port, ConfigureListen);
+        return;
+    }
+
+    if (IPAddress.TryParse(bindHost, out var ip))
+    {
+        options.Listen(ip, port, ConfigureListen);
+        return;
+    }
+
+    options.ListenAnyIP(port, ConfigureListen);
+}
+
+static bool HasTruthyFlag(string[] args, string flag) =>
+    args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+static bool IsTruthyEnvironmentVariable(string name)
+{
+    var value = Environment.GetEnvironmentVariable(name);
+    return value is not null
+        && (value.Equals("1", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("on", StringComparison.OrdinalIgnoreCase));
+}
 
 static string ClassifyAction(string innerXml)
 {

@@ -18,7 +18,6 @@ public class HeartbeatService : IHeartbeatService
     private readonly IAppConfiguration _appConfiguration;
     private readonly IPrinterDiscoveryService _printerDiscovery;
     private readonly IEpsonFiscalClient _epsonFiscalClient;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILocalPrintAuthTokenProvider _localPrintAuthTokenProvider;
     private readonly ILogger<HeartbeatService> _logger;
 
@@ -30,7 +29,6 @@ public class HeartbeatService : IHeartbeatService
         IAppConfiguration appConfiguration,
         IPrinterDiscoveryService printerDiscovery,
         IEpsonFiscalClient epsonFiscalClient,
-        IHttpClientFactory httpClientFactory,
         ILocalPrintAuthTokenProvider localPrintAuthTokenProvider,
         ILogger<HeartbeatService> logger)
     {
@@ -41,7 +39,6 @@ public class HeartbeatService : IHeartbeatService
         _appConfiguration = appConfiguration;
         _printerDiscovery = printerDiscovery;
         _epsonFiscalClient = epsonFiscalClient;
-        _httpClientFactory = httpClientFactory;
         _localPrintAuthTokenProvider = localPrintAuthTokenProvider;
         _logger = logger;
     }
@@ -152,9 +149,8 @@ public class HeartbeatService : IHeartbeatService
             }
         }
 
-        if (PrinterTypes.IsFiscalNet(printer))
-            return await IsFiscalNetReachableAsync(printer, cancellationToken).ConfigureAwait(false);
-
+        // FiscalNet and ESC/POS: TCP connect only. Real FiscalNet on :65400 does not respond to HTTP OPTIONS
+        // (see worker.log ~3s hang per heartbeat); POST /api/Receipt remains the print path.
         if (printer.Port <= 0)
             return false;
 
@@ -165,34 +161,6 @@ public class HeartbeatService : IHeartbeatService
             cts.CancelAfter(TimeSpan.FromSeconds(2));
             await client.ConnectAsync(printer.IpAddress, printer.Port, cts.Token).ConfigureAwait(false);
             return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private async Task<bool> IsFiscalNetReachableAsync(Printer printer, CancellationToken cancellationToken)
-    {
-        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
-        var scheme = fiscal.UseHttps ? "https" : "http";
-        var port = printer.Port > 0 ? printer.Port : 65400;
-        var host = printer.IpAddress.Trim();
-        var url = $"{scheme}://{host}:{port}/api/Receipt";
-
-        try
-        {
-            var client = _httpClientFactory.CreateClient("FiscalNet");
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(3));
-            using var request = new HttpRequestMessage(HttpMethod.Options, url);
-            using var response = await client.SendAsync(request, cts.Token).ConfigureAwait(false);
-            if (response.IsSuccessStatusCode || (int)response.StatusCode == 405)
-                return true;
-
-            using var getRequest = new HttpRequestMessage(HttpMethod.Get, url);
-            using var getResponse = await client.SendAsync(getRequest, cts.Token).ConfigureAwait(false);
-            return getResponse.IsSuccessStatusCode || (int)getResponse.StatusCode == 405;
         }
         catch
         {

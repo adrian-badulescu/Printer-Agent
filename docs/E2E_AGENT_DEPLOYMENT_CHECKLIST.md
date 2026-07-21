@@ -155,7 +155,23 @@ Piața IT folosește **Epson FP-81/90 RT** cu **web server Intelligent** pe impr
 
 **Dev fără hardware:** rulează `dotnet run --project PrinterAgent.EpsonBridgeStub` (stub fpmate.cgi pe `http://127.0.0.1:9102`); configurează agent cu IP `127.0.0.1`, port `9102`, `useHttps: false`.
 
-**Test hardware:** verifică `queryPrinterStatus` sau trimite job fiscal din manager; alternativ SOAP manual:
+**Dev cu HTTPS (certificat self-signed, ca imprimanta reală):**
+
+```powershell
+# variantă 1: env
+$env:FPMATE_STUB_HTTPS='true'
+$env:FPMATE_STUB_PORT='9102'   # sau 443 (poate necesita admin pe Windows)
+dotnet run --project PrinterAgent.EpsonBridgeStub
+
+# variantă 2: argument
+dotnet run --project PrinterAgent.EpsonBridgeStub -- --https
+
+# agent.json fiscal: useHttps true, același port; agentul acceptă orice certificat TLS în dev
+```
+
+Profil Visual Studio / `launchSettings`: `EpsonBridgeStubHttps` (HTTPS pe `9102`).
+
+**Test SOAP manual** (stub sau hardware):
 
 ```powershell
 # Varianta recomandată: here-string (newlines OK, fără escape manual)
@@ -170,22 +186,26 @@ $soap = @'
 </s:Envelope>
 '@
 
+# Stub HTTP
+curl.exe -X POST "http://127.0.0.1:9102/cgi-bin/fpmate.cgi" `
+  -H "Content-Type: text/xml; charset=UTF-8" `
+  -H 'SOAPAction: ""' `
+  -d $soap
+
+# Stub HTTPS (self-signed — `-k`)
+curl.exe -k -X POST "https://127.0.0.1:9102/cgi-bin/fpmate.cgi" `
+  -H "Content-Type: text/xml; charset=UTF-8" `
+  -H 'SOAPAction: ""' `
+  -d $soap
+
+# Hardware Epson (HTTPS 443)
 curl.exe -k -X POST "https://192.168.1.20/cgi-bin/fpmate.cgi" `
   -H "Content-Type: text/xml; charset=UTF-8" `
   -H 'SOAPAction: ""' `
   -d $soap
 ```
 
-Stub local (HTTP):
-
-```powershell
-curl.exe -X POST "http://127.0.0.1:9102/cgi-bin/fpmate.cgi" `
-  -H "Content-Type: text/xml; charset=UTF-8" `
-  -H 'SOAPAction: ""' `
-  -d $soap
-```
-
-One-liner (fără newlines în XML — nu trebuie escape):
+**Test hardware:** verifică `queryPrinterStatus` sau trimite job fiscal din manager; alternativ SOAP manual (one-liner):
 
 ```powershell
 curl.exe -k -X POST "https://192.168.1.20/cgi-bin/fpmate.cgi" -H "Content-Type: text/xml" -H 'SOAPAction: ""' -d '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><printerCommand><queryPrinterStatus operator="1" statusType="0" /></printerCommand></s:Body></s:Envelope>'

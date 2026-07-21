@@ -31,4 +31,13 @@ public static class PrinterTypes
 
     public static bool IsFiscalPrinter(Printer printer) =>
         IsFiscalNet(printer) || IsEpsonFiscal(printer);
+
+    /// <summary>FiscalNet driver/stub on :65400 uses HTTP; Epson fpmate uses fiscal.UseHttps.</summary>
+    public static string ResolveFiscalHttpScheme(Printer printer)
+    {
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        return IsFiscalNet(printer)
+            ? "http"
+            : fiscal.UseHttps ? "https" : "http";
+    }
 }

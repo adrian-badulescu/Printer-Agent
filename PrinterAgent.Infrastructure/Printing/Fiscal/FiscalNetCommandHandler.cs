@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
-using PrinterAgent.Application.Observability;
 using PrinterAgent.Domain;
 
 namespace PrinterAgent.Infrastructure.Printing.Fiscal;
@@ -35,21 +34,6 @@ public sealed class FiscalNetCommandHandler : IFiscalCommandHandler
         }
 
         var response = await _httpClient.SendReceiptAsync(printer, lines, cancellationToken).ConfigureAwait(false);
-
-        // #region agent log
-        DebugSessionLog.Write(
-            "H3",
-            "FiscalNetCommandHandler.ExecuteAsync:done",
-            "fiscal command http completed",
-            new
-            {
-                command,
-                printerId = printer.Id,
-                port = printer.Port,
-                success = response.Success,
-                errorCode = response.ErrorCode,
-            });
-        // #endregion
 
         if (response.Success)
         {

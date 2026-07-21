@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
-using PrinterAgent.Application.Observability;
 using StackExchange.Redis;
 
 namespace PrinterAgent.Infrastructure.Redis;
@@ -40,13 +39,6 @@ public sealed class RedisConnectionMultiplexerHolder : IRedisConnectionMultiplex
             _logger.LogInformation(
                 "Redis: opening connection ({Conn}).",
                 _appConfiguration.RedisConnectionSummary);
-
-            // #region agent log
-            DebugSessionLog.Write("B", "RedisConnectionMultiplexerHolder.cs:Get", "opening redis connection", new
-            {
-                conn = _appConfiguration.RedisConnectionSummary,
-            });
-            // #endregion
 
             _multiplexer = ConnectionMultiplexer.Connect(connectionString);
 

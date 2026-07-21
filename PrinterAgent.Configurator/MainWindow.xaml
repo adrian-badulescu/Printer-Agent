@@ -2,9 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="URS Printer Agent — Configurator"
-        Height="580"
+        Height="640"
         Width="720"
-        MinHeight="480"
+        MinHeight="520"
         MinWidth="560"
         WindowStartupLocation="CenterScreen">
   <DockPanel>
@@ -188,8 +188,23 @@
           <Label x:Name="PortLabel" Target="{Binding ElementName=PortBox}" />
           <TextBox x:Name="PortBox"
                    Padding="8"
-                   Margin="0,0,0,12"
+                   Margin="0,0,0,8"
                    Text="9100" />
+          <StackPanel x:Name="EpsonFiscalOptionsPanel" Visibility="Collapsed" Margin="0,0,0,12">
+            <CheckBox x:Name="EpsonUseHttpsCheckBox"
+                      Margin="0,0,0,8"
+                      Checked="EpsonUseHttpsCheckBox_OnChanged"
+                      Unchecked="EpsonUseHttpsCheckBox_OnChanged" />
+            <Label x:Name="EpsonWebUserLabel" Target="{Binding ElementName=EpsonWebUserBox}" />
+            <TextBox x:Name="EpsonWebUserBox" Padding="8" Margin="0,0,0,8" />
+            <Label x:Name="EpsonWebPasswordLabel" Target="{Binding ElementName=EpsonWebPasswordBox}" />
+            <PasswordBox x:Name="EpsonWebPasswordBox" Padding="8" Margin="0,0,0,4" />
+            <TextBlock x:Name="EpsonWebPasswordHintText"
+                       TextWrapping="Wrap"
+                       Foreground="#666"
+                       FontSize="11"
+                       Margin="0,0,0,4" />
+          </StackPanel>
           <StackPanel x:Name="FiscalSettingsPanel" Visibility="Collapsed" Margin="0,0,0,12">
             <Label x:Name="FiscalVatGroupLabel" Target="{Binding ElementName=FiscalVatGroupBox}" />
             <TextBox x:Name="FiscalVatGroupBox" Text="1" Padding="8" Margin="0,0,0,8" />
@@ -199,21 +214,6 @@
             <TextBox x:Name="FiscalTimeoutBox" Text="120000" Padding="8" Margin="0,0,0,8" />
             <Label x:Name="FiscalLogicalNameLabel" Target="{Binding ElementName=FiscalLogicalNameBox}" />
             <TextBox x:Name="FiscalLogicalNameBox" Text="1" Padding="8" Margin="0,0,0,8" />
-            <StackPanel x:Name="EpsonFiscalOptionsPanel" Visibility="Collapsed" Margin="0,0,0,8">
-              <CheckBox x:Name="EpsonUseHttpsCheckBox"
-                        Margin="0,0,0,8"
-                        Checked="EpsonUseHttpsCheckBox_OnChanged"
-                        Unchecked="EpsonUseHttpsCheckBox_OnChanged" />
-              <Label x:Name="EpsonWebUserLabel" Target="{Binding ElementName=EpsonWebUserBox}" />
-              <TextBox x:Name="EpsonWebUserBox" Padding="8" Margin="0,0,0,8" />
-              <Label x:Name="EpsonWebPasswordLabel" Target="{Binding ElementName=EpsonWebPasswordBox}" />
-              <PasswordBox x:Name="EpsonWebPasswordBox" Padding="8" Margin="0,0,0,4" />
-              <TextBlock x:Name="EpsonWebPasswordHintText"
-                         TextWrapping="Wrap"
-                         Foreground="#666"
-                         FontSize="11"
-                         Margin="0,0,0,4" />
-            </StackPanel>
             <TextBlock x:Name="FiscalNetHintText" TextWrapping="Wrap" Foreground="#666" FontSize="12" />
             <TextBlock x:Name="EpsonFiscalHintText" TextWrapping="Wrap" Foreground="#666" FontSize="12" Visibility="Collapsed" />
           </StackPanel>
