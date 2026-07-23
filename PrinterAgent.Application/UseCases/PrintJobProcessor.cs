@@ -110,6 +110,9 @@ public class PrintJobProcessor : IPrintJobProcessor
             finalStatus,
             result.ErrorCode,
             result.DeviceErrorCode,
+            success ? result.FiscalNumber : null,
+            success ? result.ZReportNumber : null,
+            success ? result.FiscalDate : null,
             cancellationToken);
         AgentMetrics.JobsProcessed.Add(1);
     }

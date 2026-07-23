@@ -49,6 +49,30 @@ public class PrintJobPayload
     [JsonPropertyName("customerFiscalCode")]
     public string? CustomerFiscalCode { get; set; }
 
+    [JsonPropertyName("customerName")]
+    public string? CustomerName { get; set; }
+
+    [JsonPropertyName("customerAddressLine1")]
+    public string? CustomerAddressLine1 { get; set; }
+
+    [JsonPropertyName("customerAddressLine2")]
+    public string? CustomerAddressLine2 { get; set; }
+
+    [JsonPropertyName("fiscalReferenceZReport")]
+    public string? FiscalReferenceZReport { get; set; }
+
+    [JsonPropertyName("fiscalReferenceReceiptNumber")]
+    public string? FiscalReferenceReceiptNumber { get; set; }
+
+    [JsonPropertyName("fiscalReferenceDate")]
+    public string? FiscalReferenceDate { get; set; }
+
+    [JsonPropertyName("documentNumber")]
+    public int? DocumentNumber { get; set; }
+
+    [JsonPropertyName("referencedFiscalDocumentId")]
+    public string? ReferencedFiscalDocumentId { get; set; }
+
     [JsonPropertyName("footerMessage")]
     public string? FooterMessage { get; set; }
 

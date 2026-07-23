@@ -113,6 +113,9 @@ public class BackendClient : IBackendClient
         PrintJobStatus status,
         string? errorCode = null,
         string? deviceErrorCode = null,
+        string? fiscalNumber = null,
+        string? zReportNumber = null,
+        string? fiscalDate = null,
         CancellationToken cancellationToken = default)
     {
         var request = new
@@ -120,6 +123,9 @@ public class BackendClient : IBackendClient
             Status = status.ToString(),
             ErrorCode = errorCode,
             DeviceErrorCode = deviceErrorCode,
+            FiscalNumber = fiscalNumber,
+            ZReportNumber = zReportNumber,
+            FiscalDate = fiscalDate,
         };
         const int maxAttempts = 4;
 

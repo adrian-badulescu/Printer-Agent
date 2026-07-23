@@ -107,4 +107,74 @@ public sealed class EpsonFiscalXmlBuilderTests
 
         Assert.Contains("<openDrawer operator=\"3\" />", xml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void BuildDirectInvoiceXml_uses_directInvoice_document()
+    {
+        var printer = new Domain.Printer
+        {
+            Fiscal = new Domain.FiscalPrinterSettings { OperatorId = 1, DefaultDepartment = 1 },
+        };
+        var payload = new Domain.PrintJobPayload
+        {
+            Type = "fiscal-invoice",
+            CustomerName = "Acme SRL",
+            CustomerFiscalCode = "IT12345678901",
+            CustomerAddressLine1 = "Via Roma 1",
+            FinalTotal = 10m,
+            PaymentMethod = "cash",
+            Items = [new Domain.PrintJobItem { Name = "Menu", Quantity = 1, UnitPrice = 10m, VatGroup = 1 }],
+        };
+
+        var xml = EpsonFiscalXmlBuilder.BuildDirectInvoiceXml(payload, printer);
+
+        Assert.Contains("<printerFiscalDocument>", xml, StringComparison.Ordinal);
+        Assert.Contains("documentType=\"directInvoice\"", xml, StringComparison.Ordinal);
+        Assert.Contains("messageType=\"6\"", xml, StringComparison.Ordinal);
+        Assert.Contains("message=\"Acme SRL\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<endFiscalDocument operator=\"1\" />", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildCommercialRefundXml_uses_refund_message_and_printRecRefund()
+    {
+        var printer = new Domain.Printer
+        {
+            Fiscal = new Domain.FiscalPrinterSettings { OperatorId = 2, DefaultDepartment = 1 },
+        };
+        var payload = new Domain.PrintJobPayload
+        {
+            Type = "fiscal-storno-reso",
+            FiscalReferenceZReport = "0001",
+            FiscalReferenceReceiptNumber = "0042",
+            FiscalReferenceDate = "22072026",
+            FinalTotal = 5m,
+            PaymentMethod = "cash",
+            Items = [new Domain.PrintJobItem { Name = "Tea", Quantity = 1, UnitPrice = 5m, VatGroup = 1 }],
+        };
+
+        var xml = EpsonFiscalXmlBuilder.BuildCommercialRefundXml(payload, printer);
+
+        Assert.Contains("message=\"REFUND 0001 0042 22072026\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<printRecRefund operator=\"2\"", xml, StringComparison.Ordinal);
+        Assert.Contains("<endFiscalReceipt operator=\"2\" />", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildPrintXml_routes_fiscal_invoice_separately_from_receipt()
+    {
+        var printer = new Domain.Printer { Fiscal = new Domain.FiscalPrinterSettings { OperatorId = 1 } };
+        var payload = new Domain.PrintJobPayload
+        {
+            Type = "fiscal-invoice",
+            CustomerName = "Client",
+            FinalTotal = 1m,
+            Items = [new Domain.PrintJobItem { Name = "Item", Quantity = 1, UnitPrice = 1m }],
+        };
+
+        var xml = EpsonFiscalXmlBuilder.BuildPrintXml(payload, printer);
+
+        Assert.Contains("<printerFiscalDocument>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<beginFiscalReceipt", xml, StringComparison.Ordinal);
+    }
 }

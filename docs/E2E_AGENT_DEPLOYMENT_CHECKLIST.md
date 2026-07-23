@@ -151,9 +151,19 @@ Piața IT folosește **Epson FP-81/90 RT** cu **web server Intelligent** pe impr
 |---------------|---------|------------|
 | **Print** | `bill` | `printerNonFiscal` + `printNormal` |
 | **Bon fiscal** | `fiscal-receipt` | `printerFiscalReceipt` → `printRecItem` → `printRecTotal` |
+| **Factură fiscală (IT)** | `fiscal-invoice` | `printerFiscalDocument` → `documentType="directInvoice"` + date client (`printRecMessage` type 5/6) |
+| **Storno reso (IT)** | `fiscal-storno-reso` | `printerFiscalReceipt` → `printRecMessage` `REFUND zzzz nnnn ddmmyyyy` → `printRecRefund` |
 | **Sertar** | `fiscal-command` `open-drawer` | `printerCommand` → `openDrawer` |
 
 **Dev fără hardware:** rulează `dotnet run --project PrinterAgent.EpsonBridgeStub` (stub fpmate.cgi pe `http://127.0.0.1:9102`); configurează agent cu IP `127.0.0.1`, port `9102`, `useHttps: false`.
+
+**Factură + storno reso (IT, post-vânzare):**
+
+- UI: rute partajate `/manager/table-orders` și `/staff/table-orders` — **nu** din POS `manage-orders`.
+- Backend persistă `FiscalDocuments` la enqueue; la `Success` agentul trimite `fiscalNumber`, `zReportNumber`, `fiscalDate` în callback status.
+- Storno necesită document sursă `Issued` (Receipt sau Invoice) cu Z + număr + dată din callback imprimantă.
+- Stub: `printerFiscalDocument` → `fiscalDocumentNumber` în `addInfo`; reso cu `REFUND` → `fiscalReceiptNumber`.
+- Test unitar lanț: `dotnet test PrinterAgent.Infrastructure.Tests --filter "FullyQualifiedName~EpsonFiscalEndToEnd"`.
 
 **Dev cu HTTPS (certificat self-signed, ca imprimanta reală):**
 

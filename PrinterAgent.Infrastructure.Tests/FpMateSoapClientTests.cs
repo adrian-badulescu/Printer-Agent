@@ -29,6 +29,32 @@ public sealed class FpMateSoapClientTests
     }
 
     [Fact]
+    public void Parse_success_with_document_z_and_date()
+    {
+        const string body = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <response success="true" code="" status="0">
+              <addInfo>
+                <fiscalReceiptNumber>0042</fiscalReceiptNumber>
+                <fiscalDocumentNumber>1001</fiscalDocumentNumber>
+                <zRepNumber>0001</zRepNumber>
+                <fiscalDate>22072026</fiscalDate>
+              </addInfo>
+            </response>
+            """;
+
+        var result = FpMateFiscalResponse.Parse(body);
+        var jobResult = result.ToPrintJobResult();
+
+        Assert.True(result.Success);
+        Assert.Equal("1001", result.FiscalDocumentNumber);
+        Assert.Equal("0001", result.ZReportNumber);
+        Assert.Equal("22072026", result.FiscalDate);
+        Assert.Equal("1001", jobResult.FiscalNumber);
+        Assert.Equal("0001", jobResult.ZReportNumber);
+    }
+
+    [Fact]
     public void Parse_failure_when_success_false()
     {
         const string body = """<response success="false" code="FP_NO_ANSWER" status="1"></response>""";

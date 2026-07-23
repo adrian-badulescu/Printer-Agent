@@ -9,12 +9,23 @@ public sealed class FpMateFiscalResponse
     public string? ErrorCode { get; init; }
     public string? Message { get; init; }
     public string? FiscalReceiptNumber { get; init; }
+    public string? FiscalDocumentNumber { get; init; }
+    public string? ZReportNumber { get; init; }
+    public string? FiscalDate { get; init; }
     public string? RawResponse { get; init; }
 
-    public PrintJobResult ToPrintJobResult() =>
-        Success
-            ? PrintJobResult.Ok(FiscalReceiptNumber)
-            : PrintJobResult.Failed(ErrorCode, null, Message);
+    public PrintJobResult ToPrintJobResult()
+    {
+        if (!Success)
+            return PrintJobResult.Failed(ErrorCode, null, Message);
+
+        var fiscalNumber = FiscalDocumentNumber ?? FiscalReceiptNumber;
+        return PrintJobResult.Ok(
+            FiscalReceiptNumber,
+            fiscalNumber,
+            ZReportNumber,
+            FiscalDate);
+    }
 
     public static FpMateFiscalResponse Failed(string errorCode, string? message = null, string? raw = null) =>
         new()
@@ -44,11 +55,16 @@ public sealed class FpMateFiscalResponse
             var status = response.Attribute("status")?.Value;
 
             string? receiptNumber = null;
+            string? documentNumber = null;
+            string? zReportNumber = null;
+            string? fiscalDate = null;
             var addInfo = response.Elements().FirstOrDefault(x => x.Name.LocalName == "addInfo");
             if (addInfo != null)
             {
-                var receiptEl = addInfo.Elements().FirstOrDefault(x => x.Name.LocalName == "fiscalReceiptNumber");
-                receiptNumber = receiptEl?.Value;
+                receiptNumber = ReadAddInfoValue(addInfo, "fiscalReceiptNumber");
+                documentNumber = ReadAddInfoValue(addInfo, "fiscalDocumentNumber");
+                zReportNumber = ReadAddInfoValue(addInfo, "zRepNumber", "zReportNumber");
+                fiscalDate = ReadAddInfoValue(addInfo, "fiscalDate", "dateOfIssue");
             }
 
             if (success)
@@ -57,6 +73,9 @@ public sealed class FpMateFiscalResponse
                 {
                     Success = true,
                     FiscalReceiptNumber = receiptNumber,
+                    FiscalDocumentNumber = documentNumber,
+                    ZReportNumber = zReportNumber,
+                    FiscalDate = fiscalDate,
                     RawResponse = body,
                 };
             }
@@ -68,5 +87,19 @@ public sealed class FpMateFiscalResponse
         {
             return Failed("INVALID_RESPONSE", ex.Message, body);
         }
+    }
+
+    private static string? ReadAddInfoValue(XElement addInfo, params string[] localNames)
+    {
+        foreach (var localName in localNames)
+        {
+            var value = addInfo.Elements()
+                .FirstOrDefault(x => x.Name.LocalName.Equals(localName, StringComparison.OrdinalIgnoreCase))
+                ?.Value;
+            if (!string.IsNullOrWhiteSpace(value))
+                return value.Trim();
+        }
+
+        return null;
     }
 }

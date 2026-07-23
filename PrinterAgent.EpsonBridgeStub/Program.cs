@@ -55,9 +55,18 @@ app.MapPost("/cgi-bin/fpmate.cgi", async (HttpRequest request) =>
             responseSummary = $"{action} success=true";
             break;
         case "fiscalReceipt":
+        case "fiscalDocument":
         case "nonFiscal":
             receiptCounter++;
-            responseXml = BuildSoapResponse(success: true, receiptNumber: receiptCounter.ToString("D4"));
+            var zReport = "0001";
+            var fiscalDate = DateTime.UtcNow.ToString("ddMMyyyy");
+            var documentNumber = action == "fiscalDocument" ? receiptCounter.ToString("D4") : null;
+            responseXml = BuildSoapResponse(
+                success: true,
+                receiptNumber: receiptCounter.ToString("D4"),
+                documentNumber: documentNumber,
+                zReportNumber: zReport,
+                fiscalDate: fiscalDate);
             responseSummary = $"{action} success=true receipt={receiptCounter:D4}";
             break;
         default:
@@ -176,6 +185,8 @@ static string ClassifyAction(string innerXml)
         return "openDrawer";
     if (innerXml.Contains("queryPrinterStatus", StringComparison.OrdinalIgnoreCase))
         return "queryPrinterStatus";
+    if (innerXml.Contains("printerFiscalDocument", StringComparison.OrdinalIgnoreCase))
+        return "fiscalDocument";
     if (innerXml.Contains("printerFiscalReceipt", StringComparison.OrdinalIgnoreCase))
         return "fiscalReceipt";
     if (innerXml.Contains("printerNonFiscal", StringComparison.OrdinalIgnoreCase))
@@ -197,11 +208,29 @@ static string ExtractSoapBody(string soap)
     }
 }
 
-static string BuildSoapResponse(bool success, string? code = null, string? receiptNumber = null)
+static string BuildSoapResponse(
+    bool success,
+    string? code = null,
+    string? receiptNumber = null,
+    string? documentNumber = null,
+    string? zReportNumber = null,
+    string? fiscalDate = null)
 {
-    var addInfo = receiptNumber == null
-        ? string.Empty
-        : $"<addInfo><elementList>fiscalReceiptNumber</elementList><fiscalReceiptNumber>{receiptNumber}</fiscalReceiptNumber></addInfo>";
+    string addInfo = string.Empty;
+    if (receiptNumber != null || documentNumber != null || zReportNumber != null || fiscalDate != null)
+    {
+        var parts = new List<string>();
+        if (receiptNumber != null)
+            parts.Add($"<fiscalReceiptNumber>{receiptNumber}</fiscalReceiptNumber>");
+        if (documentNumber != null)
+            parts.Add($"<fiscalDocumentNumber>{documentNumber}</fiscalDocumentNumber>");
+        if (zReportNumber != null)
+            parts.Add($"<zRepNumber>{zReportNumber}</zRepNumber>");
+        if (fiscalDate != null)
+            parts.Add($"<fiscalDate>{fiscalDate}</fiscalDate>");
+
+        addInfo = $"<addInfo>{string.Join(string.Empty, parts)}</addInfo>";
+    }
 
     var response = success
         ? $"""<response success="true" code="{code ?? ""}" status="0">{addInfo}</response>"""

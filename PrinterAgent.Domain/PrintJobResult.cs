@@ -10,9 +10,23 @@ public sealed class PrintJobResult
     public string? FiscalReceiptAmount { get; init; }
     public string? FiscalReceiptDate { get; init; }
     public string? FiscalReceiptTime { get; init; }
+    public string? FiscalNumber { get; init; }
+    public string? ZReportNumber { get; init; }
+    public string? FiscalDate { get; init; }
 
-    public static PrintJobResult Ok(string? fiscalReceiptNumber = null) =>
-        new() { Success = true, FiscalReceiptNumber = fiscalReceiptNumber };
+    public static PrintJobResult Ok(
+        string? fiscalReceiptNumber = null,
+        string? fiscalNumber = null,
+        string? zReportNumber = null,
+        string? fiscalDate = null) =>
+        new()
+        {
+            Success = true,
+            FiscalReceiptNumber = fiscalReceiptNumber,
+            FiscalNumber = fiscalNumber ?? fiscalReceiptNumber,
+            ZReportNumber = zReportNumber,
+            FiscalDate = fiscalDate,
+        };
 
     public static PrintJobResult Failed(string? errorCode, string? deviceErrorCode = null, string? errorMessage = null) =>
         new()

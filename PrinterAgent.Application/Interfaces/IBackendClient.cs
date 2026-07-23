@@ -9,6 +9,9 @@ public interface IBackendClient
         PrintJobStatus status,
         string? errorCode = null,
         string? deviceErrorCode = null,
+        string? fiscalNumber = null,
+        string? zReportNumber = null,
+        string? fiscalDate = null,
         CancellationToken cancellationToken = default);
     /// <summary>Returns false when API responds 401 Unauthorized (token invalid/expired).</summary>
     Task<bool> SendHeartbeatAsync(AgentInfo agentInfo, CancellationToken cancellationToken = default);
