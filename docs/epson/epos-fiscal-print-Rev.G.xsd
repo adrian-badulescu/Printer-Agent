@@ -1,0 +1,1849 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+ePOS-Fiscal-Print XML
+
+Version G 15/11/2023
+
+Author: Philip Barnett
+
+Copyright (C) 2023 SEIKO EPSON CORPORATION All rights reserved.
+
+-->
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" targetNamespace="http://www.epson-pos.com/schemas/2011/03/epos-print" xmlns:tns="http://www.epson-pos.com/schemas/2011/03/epos-print" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  
+<!-- ===============================================================================================================
+                                       S I M P L E   T Y P E S  -  S T A R T
+     =========================================================================================================== -->
+
+
+<!-- ============================================= R A N G E S ================================================= -->
+  
+  <!-- Standard Operator Range -->
+  <xs:simpleType name="standardOperatorRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="12" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Standard Operator Range plus Second Range
+  (+50 offset used with printRecItem, printRecRefund and printRecItemVoid. Regarding printRecItemVoid, the offset cannot be used if voidLastItem="1".
+  Normally if the quantity = 1, the quantity line with "1x" is not printed.
+  Adding the offset to the operator attribute instructs the fiscal printer to print the line when the quantity is exactly 1.
+  The offset has no effect with direct invoices.
+  -->
+
+  <xs:simpleType name="operatorTwoRanges"> 
+      <xs:union>
+        <xs:simpleType>
+          <xs:restriction base="xs:unsignedByte">
+          <xs:minInclusive value="1" />
+          <xs:maxInclusive value="12" />
+          </xs:restriction>
+        </xs:simpleType>
+        <xs:simpleType>
+          <xs:restriction base="xs:unsignedByte">
+            <xs:minInclusive value="51" />
+            <xs:maxInclusive value="62" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:union>
+  </xs:simpleType>
+
+  <!-- Department Range -->
+  <xs:simpleType name="departmentRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="99" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Commercial Document Message Index Range -->
+  <xs:simpleType name="commercialDocumentMessageIndexRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="0" />
+      <xs:maxInclusive value="99" />
+  </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Management Document Message Index Range -->
+  <xs:simpleType name="managementDocumentMessageIndexRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="9" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Invoice Message Index Range -->
+  <xs:simpleType name="InvoiceMessageIndexRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="20" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Payment Index Range -->
+  <xs:simpleType name="paymentIndexRange">
+    <xs:restriction base="xs:unsignedByte">
+     <xs:minInclusive value="0" />
+      <xs:maxInclusive value="99" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Graphic Index Range-->
+  <xs:simpleType name="graphicIndexRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="0" />
+      <xs:maxInclusive value="9" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Invoice Number Range-->
+  <xs:simpleType name="invoiceNumberRange">
+    <xs:restriction base="xs:unsignedInt">
+     <xs:minInclusive value="0" />
+      <xs:maxInclusive value="99999" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Retry Range-->
+  <xs:simpleType name="retryRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="6000" />
+      <xs:maxInclusive value="120000" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- MPD (EJ / DGFE) Commercial Document Number Range -->
+  <xs:simpleType name="EJNumberRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="9999" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Timeout Range -->
+  <xs:simpleType name="timeoutRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="3000" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ========================== B O X    O F F I C E    T I C K E T    R A N G E S ============================= -->
+  
+  <!-- Random Number Range -->
+  <xs:simpleType name="randomNumRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="00" />
+      <xs:maxInclusive value="99" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Control Code Range -->
+  <xs:simpleType name="controlCodeRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="0000" />
+      <xs:maxInclusive value="9999" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- ============================================ L E N G T H S ================================================ -->
+  
+  <!-- Commercial Document Description Length -->
+  <xs:simpleType name="commercialDocumentDescriptionLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="38" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Invoice Description Length -->
+  <xs:simpleType name="DirectInvoiceDescriptionLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="37" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="directInvoicePaymentDescriptionLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="20" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Commercial Document Data Display Length -->
+  <xs:simpleType name="dataDisplayLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="40" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Box Office Ticket (Biglietteria) Data Display Length -->
+  <xs:simpleType name="BoxOfficeTicketDataDisplayLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="20" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Message Length -->
+  <xs:simpleType name="messageLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="46" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Data Print Length (Management Document) -->
+  <xs:simpleType name="dataPrintLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="46" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Deferred Lottery Code / ID Length -->
+  <xs:simpleType name="deferredLotteryCodeLength">
+    <xs:restriction base="xs:string">
+      <xs:length value="8" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Data DirectIO Length -->
+  <xs:simpleType name="dataDirectIOLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="501" />
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <!-- ========================= B O X    O F F I C E    T I C K E T    L E N G T H S ============================ -->
+
+  <!-- Text Length -->
+  <xs:simpleType name="textLength">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="46" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- ============================================= F O R M A T S =============================================== -->
+  
+  <!-- Amount String Format with Zero allowed -->
+  <xs:simpleType name="amountStringFormatWithZero">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{1,7}" />
+      <xs:pattern value="[0-9]{1,7}[.,]{1}[0-9]{1,2}"/>
+      <xs:maxLength value="10" />
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Amount String Format with Zero not allowed -->
+  <xs:simpleType name="amountStringFormatWithoutZero">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="^[1-9]{1}[0-9]{0,6}"/>
+      <xs:pattern value="^[1-9]{1}[0-9]{0,6}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{1}[1-9]{1}[0-9]{0,5}"/>
+      <xs:pattern value="^[0-9]{1}[1-9]{1}[0-9]{0,5}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{2}[1-9]{1}[0-9]{0,4}"/>
+      <xs:pattern value="^[0-9]{2}[1-9]{1}[0-9]{0,4}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{3}[1-9]{1}[0-9]{0,3}"/>
+      <xs:pattern value="^[0-9]{3}[1-9]{1}[0-9]{0,3}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{4}[1-9]{1}[0-9]{0,2}"/>
+      <xs:pattern value="^[0-9]{4}[1-9]{1}[0-9]{0,2}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{5}[1-9]{1}[0-9]{0,1}"/>
+      <xs:pattern value="^[0-9]{5}[1-9]{1}[0-9]{0,1}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{6}[1-9]{1}"/>
+      <xs:pattern value="^[0-9]{6}[1-9]{1}[.,]{1}[0-9]{1,2}"/>
+      <xs:pattern value="^[0-9]{1,7}[.,]{1}[1-9]{1}[0-9]{0,1}" />
+      <xs:pattern value="^[0-9]{1,7}[.,]{1}[0-9]{1}[1-9]{1}" />
+      <xs:maxLength value="10" />
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Quantity String Format (zero not allowed) -->
+  <xs:simpleType name="quantityStringFormat">
+    <xs:restriction base="xs:string">  
+      <xs:pattern value="^[1-9]{1}[0-9]{0,3}"/>
+      <xs:pattern value="^[1-9]{1}[0-9]{0,3}[.,]{1}[0-9]{1,3}"/>
+      <xs:pattern value="^[0-9]{1}[1-9]{1}[0-9]{0,2}"/>
+      <xs:pattern value="^[0-9]{1}[1-9]{1}[0-9]{0,2}[.,]{1}[0-9]{1,3}"/>
+      <xs:pattern value="^[0-9]{2}[1-9]{1}[0-9]{0,1}"/>
+      <xs:pattern value="^[0-9]{2}[1-9]{1}[0-9]{0,1}[.,]{1}[0-9]{1,3}"/>
+      <xs:pattern value="^[0-9]{3}[1-9]{1}"/>
+      <xs:pattern value="^[0-9]{3}[1-9]{1}[.,]{1}[0-9]{1,3}"/>
+      <xs:pattern value="^[0-9]{1,4}[.,]{1}[1-9]{1}[0-9]{0,2}" />
+      <xs:pattern value="^[0-9]{1,4}[.,]{1}[0-9]{1}[1-9]{1}[0-9]{0,1}" />
+      <xs:pattern value="^[0-9]{1,4}[.,]{1}[0-9]{2}[1-9]{1}" />
+      <xs:maxLength value="8" />
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Command Format (Direct IO) -->  
+  <xs:simpleType name="commandFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[1-5]{1}[0-9]{3}"/>
+      <xs:pattern value="[9]{1}[0-9]{3}"/>
+      <xs:minLength value="4" />
+      <xs:maxLength value="4" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Day Format -->
+  <xs:simpleType name="dayFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[1-9]{1}"/>
+      <xs:pattern value="[0]{1}[1-9]{1}"/>
+      <xs:pattern value="[1-2]{1}[0-9]{1}"/>
+      <xs:pattern value="[3]{1}[0-1]{1}"/>
+      <xs:minLength value="1" />
+      <xs:maxLength value="2" />    
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="monthFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[1-9]{1}"/>
+      <xs:pattern value="[0]{1}[1-9]{1}"/>
+      <xs:pattern value="[1]{1}[0-2]{1}"/>
+      <xs:minLength value="1" />
+      <xs:maxLength value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="yearFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{2}"/>
+      <xs:pattern value="[2]{1}[0]{1}[0-9]{2}"/>
+      <xs:minLength value="2" />
+      <xs:maxLength value="4" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hourFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{1}"/>
+      <xs:pattern value="[0-1]{1}[0-9]{1}"/>
+      <xs:pattern value="[2]{1}[0-3]{1}"/>
+      <xs:minLength value="1" />
+      <xs:maxLength value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="minuteFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{1}"/>
+      <xs:pattern value="[0-5]{1}[0-9]{1}"/>
+      <xs:minLength value="1" />
+      <xs:maxLength value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- IP Address Format -->
+  <xs:simpleType name="ipAddressFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}"/>
+      <xs:maxLength value="15" />
+      <xs:minLength value="7" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Graphic Formats -->
+  <xs:simpleType name="graphicFormats">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="B" />
+      <xs:enumeration value="R" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- EFTPOS Terminal ID Format -->
+  <xs:simpleType name="terminalIDStringFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{8}" />
+      <xs:maxLength value="8" />
+      <xs:minLength value="8" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- EFTPOS Register ID Format -->
+  <xs:simpleType name="registerIDStringFormat">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{8}" />
+      <xs:maxLength value="8" />
+      <xs:minLength value="8" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+<!-- ============================ T Y P E S  ,    F O N T S    O R    S I M I L A R =========================== -->
+  
+  <!-- Rec Item Adjustment Types -->
+  <xs:simpleType name="recItemAdjustmentTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="5" />
+      <xs:enumeration value="8" />
+      <xs:enumeration value="10" />
+      <xs:enumeration value="11" />
+      <xs:enumeration value="12" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Subtotal Adjustment Types -->
+  <xs:simpleType name="subtotalAdjustmentTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="6" />
+      <xs:enumeration value="7" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Message Types -->
+  <xs:simpleType name="commercialDocumentMessageTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="4" />
+      <xs:enumeration value="7" />
+      <xs:enumeration value="8" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Message Types -->
+  <xs:simpleType name="nonCommercialDocumentMessageTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="1" />
+      <xs:enumeration value="8" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Message Types -->
+  <xs:simpleType name="invoiceMessageTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="2" />
+      <xs:enumeration value="4" />
+      <xs:enumeration value="5" />
+      <xs:enumeration value="6" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Payment Types -->
+  <xs:simpleType name="paymentTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="4" />
+      <xs:enumeration value="5" />
+      <xs:enumeration value="6" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Data Types -->
+  <xs:simpleType name="EJDataTypes">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="4" />
+      <xs:enumeration value="5" />
+      <xs:enumeration value="6" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Invoice Types -->
+  <xs:simpleType name="invoiceTypes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="lastReceiptInvoice" />
+      <xs:enumeration value="directInvoice" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Device Types (used with fPMateConfiguration -->
+  <xs:simpleType name="deviceTypes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="fpPrinter" />
+      <xs:enumeration value="tmPrinter" />
+    </xs:restriction>
+  </xs:simpleType>  
+
+  <!-- Justifications -->
+  <xs:simpleType name="justifications">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="4" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Fonts (includes box office ticket fonts) -->
+  <xs:simpleType name="fonts">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="4" />
+      </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Subtotal Options -->
+  <xs:simpleType name="subtotalOptions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Logo Options -->
+  <xs:simpleType name="logoOptions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Logo Location Options -->
+  <xs:simpleType name="logoLocationOptions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+      <xs:enumeration value="4" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Directions (printRecCash) -->
+  <xs:simpleType name="directions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="in" />
+      <xs:enumeration value="out" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Forms -->
+  <xs:simpleType name="forms">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="cash" />
+      <xs:enumeration value="cheque" />
+      <xs:enumeration value="check" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- clearEFTPOSBufferOptions -->
+  <xs:simpleType name="clearEFTPOSBufferOptions">
+  <xs:restriction base="xs:string">
+    <xs:enumeration value="0" />
+    <xs:enumeration value="1" />
+  </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Status Types -->
+  <xs:simpleType name="statusTypes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ========================== B O X    O F F I C E    T I C K E T    T Y P E S  ============================ -->
+
+  <!-- textTypes -->
+  <xs:simpleType name="textTypes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="R" />
+      <xs:enumeration value="S" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ===============================================================================================================
+       B A R   C O D E S,  Q R   C O D E S   A N D   D A T A   M A T R I X   C O D E S  -  S T A R T
+     ============================================================================================================== -->
+
+  <!-- Position Range (not relevant for QR or Data Matrix codes)-->
+  <xs:simpleType name="positionRange">
+    <xs:restriction base="xs:unsignedInt">
+      <xs:minInclusive value="0" />
+      <xs:maxInclusive value="511" />
+      <xs:enumeration value="900" />
+      <xs:enumeration value="901" />
+      <xs:enumeration value="902" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Width Range (not relevant for QR or Data Matrix codes)-->
+  <xs:simpleType name="widthRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="6" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Height Range (not relevant for QR or Data Matrix codes) -->
+  <xs:simpleType name="heightRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="255" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- HRI Positions (not relevant for QR or Data Matrix codes) (0 = Disabled, 1 = below, 2 = above and 3 = below and above) -->
+  <xs:simpleType name="hRIPositions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- HRI Fonts (not relevant for QR or Data Matrix codes) -->
+  <xs:simpleType name="hRIFonts">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="A" />
+      <xs:enumeration value="B" />
+      <xs:enumeration value="C" />
+    </xs:restriction>
+  </xs:simpleType> 
+
+  <!-- qRCodeAlignments  (0 = left, 1 = centred and 2 = right - Also relevant for Data Matrix codes) -->
+  <xs:simpleType name="qRCodeAlignments">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+    </xs:restriction>
+  </xs:simpleType>
+    
+  <!-- QR Code Size Range - Also relevant for Data Matrix codes -->
+  <xs:simpleType name="qRCodeSizeRange">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:minInclusive value="1" />
+      <xs:maxInclusive value="16" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- QR Code Data Types - Also relevant for Data Matrix codes -->
+  <xs:simpleType name="qRCodeDataTypes">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="alphaNumeric" />
+      <xs:enumeration value="binary" />
+      </xs:restriction>
+  </xs:simpleType>
+
+  <!-- QR Code Error Corrections (0 = Low, 1 = Medium low, 2 = Medium high and 3 = High - Not relevant for Data Matrix codes) -->
+  <xs:simpleType name="qRCodeErrorCorrections">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="0" />
+      <xs:enumeration value="1" />
+      <xs:enumeration value="2" />
+      <xs:enumeration value="3" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Code Types -->
+  <xs:simpleType name="codeTypes">
+    <xs:union>
+      <xs:simpleType >
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="UPC-A" />
+          <xs:enumeration value="UPC-B" />
+          <xs:enumeration value="EAN13" />
+          <xs:enumeration value="EAN8" />
+          <xs:enumeration value="CODE39" />
+          <xs:enumeration value="ITF" />
+          <xs:enumeration value="CODABAR" />
+          <xs:enumeration value="CODE93" />
+          <xs:enumeration value="CODE128" />
+          <xs:enumeration value="QRCODE1" />
+          <xs:enumeration value="QRCODE2" />
+        </xs:restriction>
+      </xs:simpleType>
+      <xs:simpleType>
+        <xs:restriction base="xs:unsignedByte">
+          <xs:minInclusive value="65" />
+          <xs:maxInclusive value="78" />
+          <xs:enumeration value="91" />
+          <xs:enumeration value="92" />
+          <xs:enumeration value="95" /> <!-- 95 = Data Matrix -->
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:union>
+  </xs:simpleType>
+  
+<!-- ==============================================================================================================
+                B A R   C O D E S,  Q R   C O D E S   A N D   D A T A   M A T R I X   C O D E S  -  E N D
+     =========================================================================================================== -->
+
+
+<!-- =================================== T M   N O N - F I S C A L   P R I N T E R S =========================== -->
+
+  <!-- Font -->
+  <xs:simpleType name="font">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="font_a" />
+      <xs:enumeration value="font_b" />
+      <xs:enumeration value="font_c" />
+      <xs:enumeration value="special_a" />
+      <xs:enumeration value="special_b" />
+    </xs:restriction>
+  </xs:simpleType>
+  
+  <!-- Alignment -->
+  <xs:simpleType name="align">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="left" />
+      <xs:enumeration value="center" />
+      <xs:enumeration value="right" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Color -->
+  <xs:simpleType name="color">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none" />
+      <xs:enumeration value="color_1" />
+      <xs:enumeration value="color_2" />
+      <xs:enumeration value="color_3" />
+      <xs:enumeration value="color_4" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Bar Code Type -->
+  <xs:simpleType name="barcode-type">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="upc_a" />
+      <xs:enumeration value="upc_e" />
+      <xs:enumeration value="ean13" />
+      <xs:enumeration value="jan13" />
+      <xs:enumeration value="ean8" />
+      <xs:enumeration value="jan8" />
+      <xs:enumeration value="code39" />
+      <xs:enumeration value="itf" />
+      <xs:enumeration value="codabar" />
+      <xs:enumeration value="code93" />
+      <xs:enumeration value="code128" />
+      <xs:enumeration value="gs1_128" />
+      <xs:enumeration value="gs1_databar_omnidirectional" />
+      <xs:enumeration value="gs1_databar_truncated" />
+      <xs:enumeration value="gs1_databar_limited" />
+      <xs:enumeration value="gs1_databar_expanded" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Bar Code HRI Position -->
+  <xs:simpleType name="barcode-hri">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none" />
+      <xs:enumeration value="above" />
+      <xs:enumeration value="below" />
+      <xs:enumeration value="both" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 2-D Symbol Type -->
+  <xs:simpleType name="symbol-type">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pdf417_standard" />
+      <xs:enumeration value="pdf417_truncated" />
+      <xs:enumeration value="qrcode_model_1" />
+      <xs:enumeration value="qrcode_model_2" />
+      <xs:enumeration value="maxicode_mode_2" />
+      <xs:enumeration value="maxicode_mode_3" />
+      <xs:enumeration value="maxicode_mode_4" />
+      <xs:enumeration value="maxicode_mode_5" />
+      <xs:enumeration value="maxicode_mode_6" />
+      <xs:enumeration value="gs1_databar_stacked" />
+      <xs:enumeration value="gs1_databar_stacked_omnidirectional" />
+      <xs:enumeration value="gs1_databar_expanded_stacked" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 2-D Symbol Error Correction Level -->
+  <xs:simpleType name="symbol-level">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="level_0" />
+      <xs:enumeration value="level_1" />
+      <xs:enumeration value="level_2" />
+      <xs:enumeration value="level_3" />
+      <xs:enumeration value="level_4" />
+      <xs:enumeration value="level_5" />
+      <xs:enumeration value="level_6" />
+      <xs:enumeration value="level_7" />
+      <xs:enumeration value="level_8" />
+      <xs:enumeration value="level_l" />
+      <xs:enumeration value="level_m" />
+      <xs:enumeration value="level_q" />
+      <xs:enumeration value="level_h" />
+      <xs:enumeration value="default" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Line Style -->
+  <xs:simpleType name="line-style">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="thin" />
+      <xs:enumeration value="medium" />
+      <xs:enumeration value="thick" />
+      <xs:enumeration value="thin_double" />
+      <xs:enumeration value="medium_double" />
+      <xs:enumeration value="thick_double" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Page Print Direction -->
+  <xs:simpleType name="page-dir">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="left_to_right" />
+      <xs:enumeration value="bottom_to_top" />
+      <xs:enumeration value="right_to_left" />
+      <xs:enumeration value="top_to_bottom" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Cut Type -->
+  <xs:simpleType name="cut-type">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="no_feed" />
+      <xs:enumeration value="feed" />
+      <xs:enumeration value="reserve" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Drawer Kick-out Connector -->
+  <xs:simpleType name="pulse-drawer">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="drawer_1" />
+      <xs:enumeration value="drawer_2" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Drawer Kick-out Pulse -->
+  <xs:simpleType name="pulse-time">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pulse_100" />
+      <xs:enumeration value="pulse_200" />
+      <xs:enumeration value="pulse_300" />
+      <xs:enumeration value="pulse_400" />
+      <xs:enumeration value="pulse_500" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Sound Pattern -->
+  <xs:simpleType name="sound-pattern">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none" />
+      <xs:enumeration value="pattern_a" />
+      <xs:enumeration value="pattern_b" />
+      <xs:enumeration value="pattern_c" />
+      <xs:enumeration value="pattern_d" />
+      <xs:enumeration value="pattern_e" />
+      <xs:enumeration value="error" />
+      <xs:enumeration value="paper_end" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Text Scale -->
+  <xs:simpleType name="text-scale">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:maxInclusive value="8" />
+      <xs:minInclusive value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+<!-- ===============================================================================================================
+                                           S I M P L E   T Y P E S  -  E N D
+     =========================================================================================================== -->
+
+
+<!-- ===============================================================================================================
+                                               G R O U P S  -  S T A R T
+     =========================================================================================================== -->
+
+
+  <!-- Common Fiscal Receipt Attributes for printRecItem, printRecItemVoid (Storno) and printRecRefund (Reso) -->
+  <xs:attributeGroup name="commercialDocumentCommonAttributes">
+    <xs:attribute name="operator" type="tns:operatorTwoRanges" use="required" />
+    <xs:attribute name="description" type="tns:commercialDocumentDescriptionLength" use="required" />
+    <xs:attribute name="quantity" type="tns:quantityStringFormat" use="required" />
+    <xs:attribute name="unitPrice" type="tns:amountStringFormatWithZero" use="required" />
+    <xs:attribute name="department" type="tns:departmentRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:attributeGroup>
+
+  <!-- Common Direct Invoice Attributes for printRecItem, printRecItemVoid (Storno) and printRecRefund (Reso) -->
+  <xs:attributeGroup name="directInvoiceCommonAttributes">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="description" type="tns:DirectInvoiceDescriptionLength" use="required" />
+    <xs:attribute name="quantity" type="tns:quantityStringFormat" use="required" />
+    <xs:attribute name="unitPrice" type="tns:amountStringFormatWithZero" use="required" />
+    <xs:attribute name="department" type="tns:departmentRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:attributeGroup>
+  
+  <!-- Common Elements -->
+  <xs:group name="commonElements">
+    <xs:choice>
+      <xs:element name="openDrawer" type="tns:openDrawer" />
+      <xs:element name="directIO" type="tns:directIO" />
+      <xs:element name="clearText" type="tns:clearText" />
+      <xs:element name="displayText" type="tns:displayText" />
+    </xs:choice>
+  </xs:group>
+
+  <!-- Common Elements Box Office Tickets -->
+  <xs:group name="boxOfficeTicketsCommonElements">
+    <xs:choice>
+      <xs:element name="openDrawer" type="tns:boxOfficeTicketsOpenDrawer" />
+      <xs:element name="directIO" type="tns:directIO" />
+      <xs:element name="clearText" type="tns:clearTextBoxOfficeTickets" />
+      <xs:element name="displayText" type="tns:boxOfficeTicketsDisplayText" />
+    </xs:choice>
+  </xs:group>
+
+<!-- ===============================================================================================================
+                                               G R O U P S  -  E N D
+     =========================================================================================================== -->
+  
+  
+<!-- ===============================================================================================================
+                                       C O M P L E X   T Y P E S  -  S T A R T
+     =========================================================================================================== -->
+
+<!-- ======================================== C O M M O N   T Y P E S ========================================== -->
+  
+  <!-- Open Drawer -->
+  <xs:complexType name="openDrawer">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Open Drawer -->
+  <xs:complexType name="boxOfficeTicketsOpenDrawer">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Direct IO -->
+  <xs:complexType name="directIO">
+    <xs:attribute name="command" type="tns:commandFormat" use="required" />
+    <xs:attribute name="data" type="tns:dataDirectIOLength" use="required" />
+    <xs:attribute name="timeout" type="tns:timeoutRange" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Clear Text -->
+  <xs:complexType name="clearText">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Clear Text -->
+  <xs:complexType name="clearTextBoxOfficeTickets">
+  <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Display Text -->
+  <xs:complexType name="displayText">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="data" type="tns:dataDisplayLength" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Display Text Box Office Ticket -->
+  <xs:complexType name="boxOfficeTicketsDisplayText">
+    <xs:attribute name="data" type="tns:BoxOfficeTicketDataDisplayLength" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- ================================== F P  M A T E   C O N F I G U R A T I O N =============================== -->
+
+  <!-- Read Version -->
+  <xs:complexType name="readVersion">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Add Device -->
+  <xs:complexType name="addDevice">
+    <xs:attribute name="deviceId" type="xs:string" use="required" />
+    <xs:attribute name="deviceIp" type="tns:ipAddressFormat" use="required" />
+    <xs:attribute name="deviceType" type="tns:deviceTypes" use="required" />
+    <xs:attribute name="deviceModel" type="xs:string" use="required" />
+    <xs:attribute name="deviceRetry" type="tns:retryRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Read Devices -->
+  <xs:complexType name="readDevices">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  
+<!-- ======================================== C O M M E R C I A L   D O C U M E N T S ==================================== -->
+  
+  <!-- Begin Fiscal Receipt -->
+  <xs:complexType name="beginFiscalReceipt">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!--  Commercial Document Print Rec Item -->
+  <xs:complexType name="commercialDocumentPrintRecItem">
+      <xs:attributeGroup ref="tns:commercialDocumentCommonAttributes"/>
+  </xs:complexType>
+
+  <!-- Direct Invoice Print Rec Item Direct Invoice -->
+  <xs:complexType name="directInvoicePrintRecItem">
+    <xs:attributeGroup ref="tns:directInvoiceCommonAttributes"/>
+  </xs:complexType>
+  
+  <!-- Commercial Document Print Rec Item Void -->
+  <xs:complexType name="commercialDocumentPrintRecItemVoid">
+    <xs:attributeGroup ref="tns:commercialDocumentCommonAttributes"/>
+    <xs:attribute name="voidLastItem" type="xs:unsignedShort" fixed ="1" />
+  </xs:complexType>
+
+  <!-- Direct Invoice Print Rec Item Void -->
+  <xs:complexType name="directInvoicePrintRecItemVoid">
+    <xs:attributeGroup ref="tns:directInvoiceCommonAttributes"/>
+    <xs:attribute name="voidLastItem" type="xs:unsignedShort" fixed ="1" />
+  </xs:complexType>
+  
+  <!-- Commercial Document Print Rec Item Adjustment -->
+  <xs:complexType name="printRecItemAdjustment">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="adjustmentType" type="tns:recItemAdjustmentTypes" use="required" />
+    <xs:attribute name="description" type="tns:commercialDocumentDescriptionLength" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="department" type="tns:departmentRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Direct Invoice Print Rec Item Adjustment -->
+  <xs:complexType name="printRecItemAdjustmentDirectInvoice">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="adjustmentType" type="tns:recItemAdjustmentTypes" use="required" />
+    <xs:attribute name="description" type="tns:DirectInvoiceDescriptionLength" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="department" type="tns:departmentRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Rec Item Adjustment Void -->
+  <xs:complexType name="printRecItemAdjustmentVoid">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Rec Message -->
+  <xs:complexType name="printRecMessageFiscal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="messageType" type="tns:commercialDocumentMessageTypes" use="required" />
+    <xs:attribute name="index" type="tns:commercialDocumentMessageIndexRange" use="required" />
+    <xs:attribute name="font" type="tns:fonts" use="required" />
+    <xs:attribute name="message" type="tns:messageLength" use="required" />
+    <xs:attribute name="clearEFTPOSBuffer" type="tns:clearEFTPOSBufferOptions" use="required" />
+    <xs:attribute name="timeout" type="tns:timeoutRange" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+   <!-- Print Rec Refund -->
+  <xs:complexType name="commercialDocumentPrintRecRefund">
+    <xs:attributeGroup ref="tns:commercialDocumentCommonAttributes"/>
+  </xs:complexType>
+  
+  <!-- Print Rec Lottery ID -->
+  <xs:complexType name="commercialDocumentPrintRecLotteryID">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="code" type="tns:deferredLotteryCodeLength"  use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Direct Invoice Print Rec Refund -->
+  <xs:complexType name="directInvoicePrintRecRefund">
+    <xs:attributeGroup ref="tns:directInvoiceCommonAttributes"/>
+  </xs:complexType>
+  
+  <!-- Print Rec Refund Void -->
+  <xs:complexType name="printRecRefundVoid">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Rec Subtotal -->
+  <xs:complexType name="printRecSubtotal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="option" type="tns:subtotalOptions" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Commercial Document Print Rec Subtotal Adjustment -->
+  <xs:complexType name="commercialDocumentPrintRecSubtotalAdjustment">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="adjustmentType" type="tns:recItemAdjustmentTypes" use="required" />
+    <xs:attribute name="description" type="tns:commercialDocumentDescriptionLength" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Direct Invoice Print Rec Subtotal Adjustment -->
+  <xs:complexType name="directInvoicePrintRecSubtotalAdjustment">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="adjustmentType" type="tns:recItemAdjustmentTypes" use="required" />
+    <xs:attribute name="description" type="tns:DirectInvoiceDescriptionLength" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Rec Subtotal Adjust Void -->
+  <xs:complexType name="printRecSubtotalAdjustVoid">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Commercial Document Print Rec Total -->
+  <xs:complexType name="commercialDocumentPrintRecTotal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="description" type="tns:commercialDocumentDescriptionLength" use="required" />
+    <xs:attribute name="payment" type="tns:amountStringFormatWithZero" use="required" />
+    <xs:attribute name="paymentType" type="tns:paymentTypes" use="required" />
+    <xs:attribute name="index" type="tns:paymentIndexRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Direct Invoice Print Rec Total -->
+  <xs:complexType name="directInvoicePrintRecTotal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="description" type="tns:directInvoicePaymentDescriptionLength" use="required" />
+    <xs:attribute name="payment" type="tns:amountStringFormatWithZero" use="required" />
+    <xs:attribute name="paymentType" type="tns:paymentTypes" use="required" />
+    <xs:attribute name="index" type="tns:paymentIndexRange" use="required" />
+    <xs:attribute name="justification" type="tns:justifications" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Graphic Coupon -->
+  <xs:complexType name="printGraphicCoupon">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="graphicFormat" type="tns:graphicFormats" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Bar Code, QR Code or Data Matrix code -->
+  <xs:complexType name="printBarCode">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="position" type="tns:positionRange" />
+    <xs:attribute name="qRCodeAlignment" type="tns:qRCodeAlignments" />
+    <xs:attribute name="width" type="tns:widthRange" />
+    <xs:attribute name="height" type="tns:heightRange" />
+    <xs:attribute name="qRCodeSize" type="tns:qRCodeSizeRange" />
+    <xs:attribute name="hRIPosition" type="tns:hRIPositions" />
+    <xs:attribute name="qRCodeDataType" type="tns:qRCodeDataTypes" />
+    <xs:attribute name="hRIFont" type="tns:hRIFonts" />
+    <xs:attribute name="qRCodeErrorCorrection" type="tns:qRCodeErrorCorrections" />
+    <xs:attribute name="codeType" type="tns:codeTypes" use="required" />
+    <xs:attribute name="code" type="xs:string" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- End Fiscal Receipt -->
+  <xs:complexType name="endFiscalReceipt">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+
+<!-- ==================================  M A N A G E M E N T   D O C U M E N T S ================================= -->
+  
+  <!-- Begin Non Fiscal -->
+  <xs:complexType name="beginNonFiscal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Bar Code -->
+  <!-- Same as for commercial documents -->
+
+  <!-- Print Graphic Coupon -->
+  <!-- Same as for commercial documents -->
+  
+  <!-- Management Document Set Logo -->
+  <xs:complexType name="managementDocumentSetLogo">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="location" type="tns:logoLocationOptions" />
+    <xs:attribute name="index" type="tns:graphicIndexRange" />
+    <xs:attribute name="option" type="tns:logoOptions" use="required" />
+    <xs:attribute name="graphicFormat" type="tns:graphicFormats" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Normal -->
+  <xs:complexType name="printNormal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="font" type="tns:fonts" use="required" />
+    <xs:attribute name="data" type="tns:dataPrintLength" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Rec Message -->
+  <xs:complexType name="managementDocumentPrintRecMessage">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="messageType" type="tns:nonCommercialDocumentMessageTypes" use="required" />
+    <xs:attribute name="index" type="tns:managementDocumentMessageIndexRange" use="required" />
+    <xs:attribute name="font" type="tns:fonts" use="required" />
+    <xs:attribute name="message" type="tns:messageLength" use="required" />
+    <xs:attribute name="clearEFTPOSBuffer" type="tns:clearEFTPOSBufferOptions" use="required" />
+    <xs:attribute name="timeout" type="tns:timeoutRange" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- End Non Fiscal -->
+  <xs:complexType name="endNonFiscal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  
+<!-- =========================================== R E P O R T S ================================================= -->
+  
+  <!-- Print X Report -->
+  <xs:complexType name="printXReport">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Z Report -->
+  <xs:complexType name="printZReport">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="timeout" type="tns:timeoutRange" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print X and Z Reports -->
+  <xs:complexType name="printXZReport">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="timeout" type="tns:timeoutRange" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+
+<!-- ========================================== C O M M A N D S ================================================ -->
+
+  <!-- Authorize Sales -->
+  <xs:complexType name="authorizeSales">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Begin Training -->
+  <xs:complexType name="beginTraining">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- End Training -->
+  <xs:complexType name="endTraining">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Get Date -->
+  <xs:complexType name="getDate">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Query Print Content By Date -->
+  <xs:complexType name="queryPrintContentByDate">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="dataType" type="tns:EJDataTypes" use="required" />
+    <xs:attribute name="fromDay" type="tns:dayFormat" use="required" />
+    <xs:attribute name="fromMonth" type="tns:monthFormat" use="required" />
+    <xs:attribute name="fromYear" type="tns:yearFormat" use="required" />
+    <xs:attribute name="toDay" type="tns:dayFormat" use="required" />
+    <xs:attribute name="toMonth" type="tns:monthFormat" use="required" />
+    <xs:attribute name="toYear" type="tns:yearFormat" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Query Print Content By Numbers -->
+  <xs:complexType name="queryPrintContentByNumbers">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="dataType" type="tns:EJDataTypes" use="required" />
+    <xs:attribute name="day" type="tns:dayFormat" use="required" />
+    <xs:attribute name="month" type="tns:monthFormat" use="required" />
+    <xs:attribute name="year" type="tns:yearFormat" use="required" />
+    <xs:attribute name="fromNumber" type="tns:EJNumberRange" use="required" />
+    <xs:attribute name="toNumber" type="tns:EJNumberRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Duplicate Receipt -->
+  <xs:complexType name="printDuplicateReceipt">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Rec Cash -->
+  <xs:complexType name="printRecCash">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="direction" type="tns:directions" use="required" />
+    <xs:attribute name="form" type="tns:forms" use="required" />
+    <xs:attribute name="amount" type="tns:amountStringFormatWithoutZero" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Rec Void -->
+  <xs:complexType name="printRecVoid">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Query Printer Status -->
+  <xs:complexType name="queryPrinterStatus">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="statusType" type="tns:statusTypes" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Reset Printer -->
+  <xs:complexType name="resetPrinter">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Set Date Command -->
+  <xs:complexType name="setDate">
+    <xs:attribute name="day" type="tns:dayFormat" use="required" />
+    <xs:attribute name="month" type="tns:monthFormat" use="required" />
+    <xs:attribute name="year" type="tns:yearFormat" use="required" />
+    <xs:attribute name="hour" type="tns:hourFormat" use="required" />
+    <xs:attribute name="minute" type="tns:minuteFormat" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Set Logo Command -->
+  <xs:complexType name="setLogoCommand">
+    <xs:attribute name="location" type="tns:logoLocationOptions" use="required" />
+    <xs:attribute name="index" type="tns:graphicIndexRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- EFTPOSDailyClosure Command -->
+  <xs:complexType name="EFTPOSDailyClosure">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="terminalID" type="tns:terminalIDStringFormat" use="required" />
+    <xs:attribute name="registerID" type="tns:registerIDStringFormat" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- EFTPOSGetCurrentTotal Command -->
+  <xs:complexType name="EFTPOSGetCurrentTotal">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="terminalID" type="tns:terminalIDStringFormat" use="required" />
+    <xs:attribute name="registerID" type="tns:registerIDStringFormat" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Get Fiscal Serial Number Command -->
+  <xs:complexType name="getSerialNumber">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Reboot Web Server -->
+  <xs:complexType name="rebootWebServer">
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+
+  <!-- ================================= I N V O I C E S ========================================= -->
+
+  <!-- Print Rec Message -->
+<xs:complexType name="printRecMessageInvoice">
+  <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+  <xs:attribute name="messageType" type="tns:invoiceMessageTypes" use="required" />
+  <xs:attribute name="index" type="tns:InvoiceMessageIndexRange" use="required" />
+  <xs:attribute name="message" type="tns:messageLength" use="required" />
+  <xs:attribute name="timeout" type="tns:timeoutRange" />
+  <xs:attribute name="comment" type="xs:string" />
+</xs:complexType>
+  
+  <!-- Open Invoice -->
+  <xs:complexType name="beginFiscalDocument">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="documentType" type="tns:invoiceTypes" use="required" />
+    <xs:attribute name="documentNumber" type="tns:invoiceNumberRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- End Fiscal Document -->
+  <xs:complexType name="endFiscalDocument">
+    <xs:attribute name="operator" type="tns:standardOperatorRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+
+  <!-- ============================== B O X    O F F I C E    T I C K E T S ===================================== -->
+
+  <!-- Enter Ticket -->
+  <xs:complexType name="enterTicket">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Begin Ticket -->
+  <xs:complexType name="beginTicket">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Ticket -->
+  <xs:complexType name="printTicket">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="textType" type="tns:textTypes" use="required" />
+    <xs:attribute name="font" type="tns:fonts" use="required" />
+    <xs:attribute name="text" type="tns:textLength" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+
+  <!-- Print Bar Code -->
+  <xs:complexType name="printBarCodeBoxOfficeTicket">
+    <xs:attribute name="position" type="tns:positionRange" />
+    <xs:attribute name="qRCodeAlignment" type="tns:qRCodeAlignments" />
+    <xs:attribute name="width" type="tns:widthRange" />
+    <xs:attribute name="height" type="tns:heightRange" />
+    <xs:attribute name="qRCodeSize" type="tns:qRCodeSizeRange" />
+    <xs:attribute name="hRIPosition" type="tns:hRIPositions" />
+    <xs:attribute name="qRCodeDataType" type="tns:qRCodeDataTypes" />
+    <xs:attribute name="hRIFont" type="tns:hRIFonts" />
+    <xs:attribute name="qRCodeErrorCorrection" type="tns:qRCodeErrorCorrections" />
+    <xs:attribute name="codeType" type="tns:codeTypes" use="required" />
+    <xs:attribute name="code" type="xs:string" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- End Ticket -->
+  <xs:complexType name="endTicket">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Exit Ticket -->
+  <xs:complexType name="exitTicket">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+  <!-- Print Ticket Void -->
+  <xs:complexType name="printTicketVoid">
+    <xs:attribute name="randomNum" type="tns:randomNumRange" use="required" />
+    <xs:attribute name="controlCode" type="tns:controlCodeRange" use="required" />
+    <xs:attribute name="comment" type="xs:string" />
+  </xs:complexType>
+  
+    
+  <!-- ================================ T M   N O N - F I S C A L   P R I N T E R S ============================== -->
+  
+  <!-- Feed Paper -->
+  <xs:complexType name="feed">
+    <xs:sequence />
+    <xs:attribute name="line" type="xs:unsignedByte" />
+    <xs:attribute name="unit" type="xs:unsignedByte" />
+    <xs:attribute name="linespc" type="xs:unsignedByte" />
+  </xs:complexType>
+
+  <!-- Print Text -->
+  <xs:complexType name="text">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="lang" type="xs:language" />
+        <xs:attribute name="align" type="tns:align" />
+        <xs:attribute name="font" type="tns:font" />
+        <xs:attribute name="linespc" type="xs:unsignedByte" />
+        <xs:attribute name="dw" type="xs:boolean" />
+        <xs:attribute name="dh" type="xs:boolean" />
+        <xs:attribute name="rotate" type="xs:boolean" />
+        <xs:attribute name="reverse" type="xs:boolean" />
+        <xs:attribute name="ul" type="xs:boolean" />
+        <xs:attribute name="em" type="xs:boolean" />
+        <xs:attribute name="color" type="tns:color" />
+        <xs:attribute name="width" type="tns:text-scale" />
+        <xs:attribute name="height" type="tns:text-scale" />
+        <xs:attribute name="smooth" type="xs:boolean" />
+        <xs:attribute name="x" type="xs:unsignedShort" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Print Image (Raster Bit Image) -->
+  <xs:complexType name="image">
+    <xs:simpleContent>
+      <xs:extension base="xs:base64Binary">
+        <xs:attribute name="width" type="xs:unsignedShort" use="required" />
+        <xs:attribute name="height" type="xs:unsignedShort" use="required" />
+        <xs:attribute name="align" type="tns:align" />
+        <xs:attribute name="color" type="tns:color" default="color_1" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Print Logo (NV Bit Image) -->
+  <xs:complexType name="logo">
+    <xs:sequence />
+    <xs:attribute name="key1" type="xs:unsignedByte" use="required" />
+    <xs:attribute name="key2" type="xs:unsignedByte" use="required" />
+    <xs:attribute name="align" type="tns:align" />
+  </xs:complexType>
+
+  <!-- Print Bar Code -->
+  <xs:complexType name="barcode">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="tns:barcode-type" use="required" />
+        <xs:attribute name="align" type="tns:align" />
+        <xs:attribute name="hri" type="tns:barcode-hri" />
+        <xs:attribute name="font" type="tns:font" />
+        <xs:attribute name="width" type="xs:unsignedByte" />
+        <xs:attribute name="height" type="xs:unsignedByte" />
+        <xs:attribute name="rotate" type="xs:boolean" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Print 2-D Symbol -->
+  <xs:complexType name="symbol">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="type" type="tns:symbol-type" use="required" />
+        <xs:attribute name="align" type="tns:align" />
+        <xs:attribute name="level" type="tns:symbol-level" />
+        <xs:attribute name="width" type="xs:unsignedByte" />
+        <xs:attribute name="height" type="xs:unsignedByte" />
+        <xs:attribute name="size" type="xs:unsignedShort" />
+        <xs:attribute name="rotate" type="xs:boolean" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Command -->
+  <xs:complexType name="command">
+    <xs:simpleContent>
+      <xs:extension base="xs:hexBinary" />
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Draw Horizontal Line -->
+  <xs:complexType name="hline">
+    <xs:sequence />
+    <xs:attribute name="x1" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="x2" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="style" type="tns:line-style" default="thin" />
+  </xs:complexType>
+
+  <!-- Begin Vertical Line -->
+  <xs:complexType name="vline-begin">
+    <xs:sequence />
+    <xs:attribute name="x" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="style" type="tns:line-style" default="thin" />
+  </xs:complexType>
+
+  <!-- End Vertical Line -->
+  <xs:complexType name="vline-end">
+    <xs:sequence />
+    <xs:attribute name="x" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="style" type="tns:line-style" default="thin" />
+  </xs:complexType>
+
+  <!-- Page Mode -->
+  <xs:complexType name="page">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element name="feed" type="tns:feed" />
+      <xs:element name="text" type="tns:text" />
+      <xs:element name="image" type="tns:image" />
+      <xs:element name="logo" type="tns:logo" />
+      <xs:element name="barcode" type="tns:barcode" />
+      <xs:element name="symbol" type="tns:symbol" />
+      <xs:element name="command" type="tns:command" />
+      <xs:element name="area" type="tns:area" />
+      <xs:element name="direction" type="tns:direction" />
+      <xs:element name="position" type="tns:position" />
+      <xs:element name="line" type="tns:line" />
+      <xs:element name="rectangle" type="tns:rectangle" />
+    </xs:choice>
+  </xs:complexType>
+
+  <!-- Set Print Area -->
+  <xs:complexType name="area">
+    <xs:sequence />
+    <xs:attribute name="x" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="width" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="height" type="xs:unsignedShort" use="required" />
+  </xs:complexType>
+
+  <!-- Set Print Direction -->
+  <xs:complexType name="direction">
+    <xs:sequence />
+    <xs:attribute name="dir" type="tns:page-dir" use="required" />
+  </xs:complexType>
+
+  <!-- Set Print Position -->
+  <xs:complexType name="position">
+    <xs:sequence />
+    <xs:attribute name="x" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y" type="xs:unsignedShort" use="required" />
+  </xs:complexType>
+
+  <!-- Draw Line -->
+  <xs:complexType name="line">
+    <xs:sequence />
+    <xs:attribute name="x1" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y1" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="x2" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y2" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="style" type="tns:line-style" default="thin" />
+  </xs:complexType>
+
+  <!-- Draw Rectangle -->
+  <xs:complexType name="rectangle">
+    <xs:sequence />
+    <xs:attribute name="x1" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y1" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="x2" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="y2" type="xs:unsignedShort" use="required" />
+    <xs:attribute name="style" type="tns:line-style" default="thin" />
+  </xs:complexType>
+
+  <!-- Cut Paper -->
+  <xs:complexType name="cut">
+    <xs:sequence />
+    <xs:attribute name="type" type="tns:cut-type" default="feed" />
+  </xs:complexType>
+
+  <!-- Pulse -->
+  <xs:complexType name="pulse">
+    <xs:sequence />
+    <xs:attribute name="drawer" type="tns:pulse-drawer" default="drawer_1" />
+    <xs:attribute name="time" type="tns:pulse-time" default="pulse_100" />
+  </xs:complexType>
+
+  <!-- Sound -->
+  <xs:complexType name="sound">
+    <xs:sequence />
+    <xs:attribute name="pattern" type="tns:sound-pattern" default="pattern_a" />
+    <xs:attribute name="repeat" type="xs:unsignedByte" default="1" />
+  </xs:complexType>
+
+  
+<!-- ===============================================================================================================
+                                     R O O T   E L E M E N T S  -  S T A R T
+     =========================================================================================================== -->
+
+<!-- =========================== F I S C A L   P R I N T E R   R E Q U E S T S ================================= -->
+
+  <!-- FP Mate Configuration Request -->
+  <xs:complexType name="fpMateConfiguration">
+    <xs:choice minOccurs="1" maxOccurs="unbounded">
+      <xs:group ref="tns:commonElements" />
+      <xs:element name="readVersion" type="tns:readVersion" minOccurs="0" maxOccurs="1" />
+      <xs:element name="addDevice" type="tns:addDevice" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="readDevices" type="tns:readDevices" minOccurs="0" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="fpMateConfiguration" type="tns:fpMateConfiguration" />
+
+  <!-- Commercial Document Request -->
+  <xs:complexType name="printerFiscalReceipt">
+    <xs:choice minOccurs="4" maxOccurs="unbounded">
+      <xs:group ref="tns:commonElements" />
+      <xs:element name="beginFiscalReceipt" type="tns:beginFiscalReceipt" minOccurs="1" maxOccurs="1" />
+      <xs:element name="printRecItem" type="tns:commercialDocumentPrintRecItem" minOccurs="1" maxOccurs="unbounded" />
+      <xs:element name="printRecItemVoid" type="tns:commercialDocumentPrintRecItemVoid" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printRecItemAdjustment" type="tns:printRecItemAdjustment" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecItemAdjustmentVoid" type="tns:printRecItemAdjustmentVoid" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printRecMessage" type="tns:printRecMessageFiscal" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printRecRefund" type="tns:commercialDocumentPrintRecRefund" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecRefundVoid" type="tns:printRecRefundVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecRefundAdjustment" type="tns:commercialDocumentPrintRecRefund" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecLotteryID" type="tns:commercialDocumentPrintRecLotteryID" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printRecSubtotal" type="tns:printRecSubtotal" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecSubtotalAdjustment" type="tns:commercialDocumentPrintRecSubtotalAdjustment" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecSubtotalAdjustVoid" type="tns:printRecSubtotalAdjustVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecTotal" type="tns:commercialDocumentPrintRecTotal" minOccurs="1" maxOccurs="unbounded" />
+      <xs:element name="printGraphicCoupon" type="tns:printGraphicCoupon" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printBarCode" type="tns:printBarCode" minOccurs="0" maxOccurs="1" />
+      <xs:element name="endFiscalReceipt" type="tns:endFiscalReceipt" minOccurs="1" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerFiscalReceipt" type="tns:printerFiscalReceipt" />
+
+  <!-- Management Document Request -->
+  <xs:complexType name="printerNonFiscal">
+    <xs:choice minOccurs="3" maxOccurs="unbounded" >
+      <xs:group ref="tns:commonElements"/>
+      <xs:element name="beginNonFiscal" type="tns:beginNonFiscal" minOccurs="1" maxOccurs="1" />
+      <xs:element name="printNormal" type="tns:printNormal" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printGraphicCoupon" type="tns:printGraphicCoupon" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="setLogo" type="tns:managementDocumentSetLogo" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printBarCode" type="tns:printBarCode" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecMessage" type="tns:managementDocumentPrintRecMessage" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="endNonFiscal" type="tns:endNonFiscal" minOccurs="1" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerNonFiscal" type="tns:printerNonFiscal" />
+
+  <!-- Fiscal Report Request -->
+  <xs:complexType name="printerFiscalReport">
+    <xs:choice minOccurs="1" maxOccurs="1" >
+      <xs:group ref="tns:commonElements"/>
+      <xs:element name="printXReport" type="tns:printXReport" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printZReport" type="tns:printZReport" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printXZReport" type="tns:printXZReport" minOccurs="0" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerFiscalReport" type="tns:printerFiscalReport" />
+
+  <!-- Command Request -->
+  <xs:complexType name="printerCommand">
+    <xs:choice minOccurs="1" maxOccurs="1" >
+      <xs:group ref="tns:commonElements"/>
+      <xs:element name="authorizeSales" type="tns:authorizeSales" minOccurs="0" maxOccurs="1" />
+      <xs:element name="beginTraining" type="tns:beginTraining" minOccurs="0" maxOccurs="1" />
+      <xs:element name="endTraining" type="tns:endTraining" minOccurs="0" maxOccurs="1" />
+      <xs:element name="EFTPOSDailyClosure" type="tns:EFTPOSDailyClosure" minOccurs="0" maxOccurs="1" />
+      <xs:element name="EFTPOSGetCurrentTotal" type="tns:EFTPOSDailyClosure" minOccurs="0" maxOccurs="1" />
+      <xs:element name="getDate" type="tns:getDate" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printContentByDate" type="tns:queryPrintContentByDate" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printContentByNumbers" type="tns:queryPrintContentByNumbers" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printDuplicateReceipt" type="tns:printDuplicateReceipt" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printRecCash" type="tns:printRecCash" minOccurs="0" maxOccurs="1" />
+      <xs:element name="printRecVoid" type="tns:printRecVoid" minOccurs="0" maxOccurs="1" />
+      <xs:element name="queryContentByDate" type="tns:queryPrintContentByDate" minOccurs="0" maxOccurs="1" />
+      <xs:element name="queryContentByNumbers" type="tns:queryPrintContentByNumbers" minOccurs="0" maxOccurs="1" />
+      <xs:element name="queryPrinterStatus" type="tns:queryPrinterStatus" minOccurs="0" maxOccurs="1" />
+      <xs:element name="resetPrinter" type="tns:resetPrinter" minOccurs="0" maxOccurs="1" />
+      <xs:element name="setDate" type="tns:setDate" minOccurs="0" maxOccurs="1" />
+      <xs:element name="setLogo" type="tns:setLogoCommand" minOccurs="0" maxOccurs="1" />
+      <xs:element name="getSerialNumber" type="tns:getSerialNumber" minOccurs="0" maxOccurs="1" />
+      <xs:element name="rebootWebServer" type="tns:rebootWebServer" minOccurs="0" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerCommand" type="tns:printerCommand" />
+
+  <!-- Command Request -->
+  <xs:complexType name="printerCommands">
+    <xs:choice minOccurs="1" maxOccurs="unbounded" >
+      <xs:group ref="tns:commonElements"/>
+      <xs:element name="beginTraining" type="tns:beginTraining" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="endTraining" type="tns:endTraining" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printContentByDate" type="tns:queryPrintContentByDate" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printContentByNumbers" type="tns:queryPrintContentByNumbers" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printDuplicateReceipt" type="tns:printDuplicateReceipt" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecCash" type="tns:printRecCash" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecVoid" type="tns:printRecVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="resetPrinter" type="tns:resetPrinter" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="setDate" type="tns:setDate" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="setLogo" type="tns:setLogoCommand" minOccurs="0" maxOccurs="unbounded" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerCommands" type="tns:printerCommands" />
+  
+  
+  <!-- Invoice Request -->
+  <xs:complexType name="printerFiscalDocument">
+    <xs:choice minOccurs="1" maxOccurs="unbounded" >
+      <xs:group ref="tns:commonElements"/>
+      <xs:element name="printRecMessage" type="tns:printRecMessageInvoice" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="beginFiscalDocument" type="tns:beginFiscalDocument" minOccurs="1" maxOccurs="1" />
+      <xs:element name="printRecItem" type="tns:directInvoicePrintRecItem" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecItemVoid" type="tns:directInvoicePrintRecItemVoid" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printRecItemAdjustment" type="tns:printRecItemAdjustment" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecItemAdjustmentVoid" type="tns:printRecItemAdjustmentVoid" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printRecRefund" type="tns:directInvoicePrintRecRefund" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecRefundVoid" type="tns:printRecRefundVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecSubtotal" type="tns:printRecSubtotal" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecSubtotalAdjustment" type="tns:directInvoicePrintRecSubtotalAdjustment" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecSubtotalAdjustVoid" type="tns:printRecSubtotalAdjustVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printRecTotal" type="tns:directInvoicePrintRecTotal" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printBarCode" type="tns:printBarCode" minOccurs="0" maxOccurs="1" />
+      <xs:element name="endFiscalReceipt" type="tns:endFiscalReceipt" minOccurs="0" maxOccurs="1" />
+      <xs:element name="endFiscalDocument" type="tns:endFiscalDocument" minOccurs="0" maxOccurs="1" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerFiscalDocument" type="tns:printerFiscalDocument" />
+
+  <!-- Box Office Ticket Request -->
+  <xs:complexType name="printerTicket">
+    <xs:choice minOccurs="3" maxOccurs="unbounded" >
+      <xs:group ref="tns:boxOfficeTicketsCommonElements"/>
+      <xs:element name="enterTicket" type="tns:enterTicket" minOccurs="0" maxOccurs="1" />
+      <xs:element name="beginTicket" type="tns:beginTicket" minOccurs="1" maxOccurs="1" />
+      <xs:element name="printTicketVoid" type="tns:printTicketVoid" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="printBarCode" type="tns:printBarCodeBoxOfficeTicket" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="printTicket" type="tns:printTicket" minOccurs="0" maxOccurs="unbounded" />
+      <xs:element name="endTicket" type="tns:endTicket" minOccurs="1" maxOccurs="1" />
+      <xs:element name="exitTicket" type="tns:exitTicket" minOccurs="1" maxOccurs="1" />      
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="printerTicket" type="tns:printerTicket" />
+
+
+  <!-- ========================== T M   N O N - F I S C A L   P R I N T E R   R E Q U E S T ====================== -->
+  
+  <!-- ePOS-Print Request -->
+  <xs:complexType name="epos-print">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element name="feed" type="tns:feed" />
+      <xs:element name="text" type="tns:text" />
+      <xs:element name="image" type="tns:image" />
+      <xs:element name="logo" type="tns:logo" />
+      <xs:element name="barcode" type="tns:barcode" />
+      <xs:element name="symbol" type="tns:symbol" />
+      <xs:element name="command" type="tns:command" />
+      <xs:element name="hline" type="tns:hline" />
+      <xs:element name="vline-begin" type="tns:vline-begin" />
+      <xs:element name="vline-end" type="tns:vline-end" />
+      <xs:element name="page" type="tns:page" />
+      <xs:element name="cut" type="tns:cut" />
+      <xs:element name="pulse" type="tns:pulse" />
+      <xs:element name="sound" type="tns:sound" />
+    </xs:choice>
+  </xs:complexType>
+  <xs:element name="epos-print" type="tns:epos-print" />
+
+  
+<!-- ============================================== R E S P O N S E ============================================ -->
+  
+  <!-- ePOS-Print Response -->
+  <xs:complexType name="response">
+    <xs:sequence />
+    <xs:attribute name="success" type="xs:boolean" />
+    <xs:attribute name="code" type="xs:string" />
+    <xs:attribute name="status" type="xs:unsignedInt" />
+  </xs:complexType>
+  <xs:element name="response" type="tns:response" />
+
+<!-- ===============================================================================================================
+                                          R O O T   E L E M E N T S  -  E N D
+     =========================================================================================================== -->
+
+<!-- ===============================================================================================================
+                                          C O M P L E X   T Y P E S  -  E N D
+     =========================================================================================================== -->
+
+</xs:schema>

@@ -1,0 +1,91 @@
+===============================================================================================================
+Rev A:
+17/07/2012
+First release.
+===============================================================================================================
+
+===============================================================================================================
+Rev B:
+31/01/2013
+Corrected date regular expressions (missing right square bracket ] characters).
+===============================================================================================================
+
+===============================================================================================================
+Rev C:
+14/11/2014
+Updated with new elements and attributes.
+===============================================================================================================
+
+===============================================================================================================
+Rev D:
+21/12/2015
+
+Added +50 operator offset (operatorTwoRanges). Renamed operatorRange to standardOperatorRange.
+Corrected paymentIndexRange as zero can be used with cash and credit.
+Rewrote quantity regular expression to not allow zero.
+Added and modified regular expression to distinguish between amounts that can and cannot be zero.
+Removed old amountStringFormat type from relative methods and applied new amountStringFormatWithZero and
+amountStringFormatWithoutZero types as appropriate.
+
+Removed operator from following methods as was never required:
+  setDate
+  getDate
+  beginTraining
+  endTraining
+  setLogo (in printerCommand file)
+===============================================================================================================
+
+===============================================================================================================
+Rev E:
+15/03/2016
+
+Added printRecMessage to fiscal documents. Added dependencies.
+Corrected non-fiscal receipt printRecMessage element (type 1 additional header missing).
+===============================================================================================================
+
+===============================================================================================================
+Rev F:
+13/03/2018
+
+Added printerCommands XML file type.
+Added EFTPOSDailyClosure and EFTPOSGetCurrentTotal.
+Added timeout attribute to Direct IO, printZReport and printXZ elements.
+Added statusType to queryPrinterStatus (0 = basic status  1 = RT status).
+===============================================================================================================
+
+===============================================================================================================
+Rev G:
+15/11/2023
+Changed the following wordings:
+	Fiscal receipt to commercial document.
+	Non-fiscal receipt to management document.
+	document to invoice.
+commandFormat updated to include H1=9.
+recItemAdjustmentTypes: Added modifiers 10, 11 and 12 (Deposit, Free of Charge and Single use voucher).
+invoiceMessageTypes: Added type 2 (trailer line) as they are now allowed in invoices.
+paymentTypes: Added types 4, 5 and 6 (multiple tickets, not paid and payment discount).
+paymentIndexRange: maxInclusive value increased from 10 to 99 as this is the limit with multiple tickets.
+EJDataTypes: Added search type 6 (electronic payments only).
+queryPrinterStatus removed from printerCommands file type (has to be printerCommand type).
+justification: Increased maxInclusive from 2 to 4 (in case weighing scales function is used).
+printBarCode: Extended codeTypes to allow numerical values from 65 to 78, 91, 92 and 95 (Data Matrix).
+Added:
+	printRecLotteryID
+	getSerialNumber
+	printRecRefundAdjustment
+	deferredLotteryCodeLength
+	rebootWebServer
+Added printBarCode to printerFiscalDocument as they can now be printed in invoices.
+commercialDocumentMessageIndexRange: minInclusive value reduced from 1 to 0 to allow static trailer lines erasure.
+Added missing timeout attribute to printRecMessageFiscal, managementDocumentPrintRecMessage and printRecMessageInvoice.
+Removed the following obsolete items:
+	freeInvoice and receiptBasedFreeInvoice types from documentTypes.
+	Free invoice documentAmount attribute from beginFiscalDocument.
+	printFiscalDocumentLine from printerFiscalDocument and associated items:
+		Attributes in <xs:complexType name="printFiscalDocumentLine">
+		<xs:simpleType name="documentLineLength">
+	operationType from endFiscalDocument and associated item:
+		Attributes in <xs:simpleType name="operationTypes">
+	saveDevices
+	printRecTotalCreditNote
+===============================================================================================================

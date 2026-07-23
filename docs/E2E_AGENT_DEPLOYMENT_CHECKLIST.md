@@ -108,7 +108,7 @@ Piața IT folosește **Epson FP-81/90 RT** cu **web server Intelligent** pe impr
 |------------|-------------|
 | Printer Agent (Worker) | client HTTP(S) → imprimantă |
 | Epson FP web server | `POST /cgi-bin/fpmate.cgi` |
-| Contract XML | `epos-fiscal-print-Rev.G.xsd` (Intelligent FP SDK JS) |
+| Contract XML | [`docs/epson/epos-fiscal-print-Rev.G.xsd`](epson/epos-fiscal-print-Rev.G.xsd) (Epson Intelligent FP SDK, Dec 2023) |
 | Config imprimantă | EpsonFpWizard — web server, SET 19 = COMPUTER |
 
 **Pași instalare:**
