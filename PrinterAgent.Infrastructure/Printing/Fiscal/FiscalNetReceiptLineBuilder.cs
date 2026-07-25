@@ -15,6 +15,15 @@ public static class FiscalNetReceiptLineBuilder
         var defaultDept = fiscal.DefaultDepartment > 0 ? fiscal.DefaultDepartment : 1;
         var lines = new List<string>();
 
+        var restaurantName = ReceiptRestaurantHeaderHelper.SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(restaurantName))
+            lines.Add($"TL^{Truncate(Sanitize(restaurantName), MaxNameLength)}");
+
+        var registrationLine = ReceiptRestaurantHeaderHelper.SafeAscii(
+            ReceiptRestaurantHeaderHelper.FormatRegistrationLine(job.Payload.RegistrationNumber)).ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(registrationLine))
+            lines.Add($"TL^{Truncate(Sanitize(registrationLine), MaxNameLength)}");
+
         var customer = job.Payload.CustomerFiscalCode?.Trim();
         if (!string.IsNullOrWhiteSpace(customer))
             lines.Add($"CF^{Sanitize(customer)}");
@@ -36,6 +45,68 @@ public static class FiscalNetReceiptLineBuilder
             lines.Add(paymentLine);
 
         return lines.ToArray();
+    }
+
+    /// <summary>
+    /// Post-issuance storno bon: VS lines (negative sale) + reference to original receipt.
+    /// See BonuriTest bon_complex.txt — VS voids/corrects item lines; ST^ is subtotal, not storno.
+    /// </summary>
+    public static string[] BuildStorno(PrintJob job, Printer printer)
+    {
+        var fiscal = printer.Fiscal ?? new FiscalPrinterSettings();
+        var defaultVat = ClampVatGroup(fiscal.DefaultVatGroup);
+        var defaultDept = fiscal.DefaultDepartment > 0 ? fiscal.DefaultDepartment : 1;
+        var lines = new List<string>();
+
+        var referenceLine = BuildStornoReferenceLine(job.Payload);
+        if (!string.IsNullOrWhiteSpace(referenceLine))
+            lines.Add($"TL^{Truncate(Sanitize(referenceLine), MaxNameLength)}");
+
+        var customer = job.Payload.CustomerFiscalCode?.Trim();
+        if (!string.IsNullOrWhiteSpace(customer))
+            lines.Add($"CF^{Sanitize(customer)}");
+
+        foreach (var item in job.Payload.Items)
+        {
+            var qty = item.Quantity <= 0 ? 1 : item.Quantity;
+            var unit = RoundMoney(item.UnitPrice ?? item.Price);
+            var name = Truncate(Sanitize(item.Name), MaxNameLength);
+            var vatGroup = item.VatGroup is >= 1 and <= 5 ? item.VatGroup.Value : defaultVat;
+            var department = item.Department ?? defaultDept;
+            lines.Add($"VS^{name}^{FormatPrice(unit)}^{FormatQuantity(qty)}^buc^{vatGroup}^{department}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(job.Payload.FooterMessage))
+            lines.Add($"TL^{Truncate(Sanitize(job.Payload.FooterMessage), MaxNameLength)}");
+
+        foreach (var paymentLine in BuildPaymentLines(job))
+            lines.Add(paymentLine);
+
+        return lines.ToArray();
+    }
+
+    internal static string BuildStornoReferenceLine(PrintJobPayload payload)
+    {
+        var receipt = payload.FiscalReferenceReceiptNumber?.Trim();
+        var zReport = payload.FiscalReferenceZReport?.Trim();
+        var date = payload.FiscalReferenceDate?.Trim();
+
+        if (string.IsNullOrWhiteSpace(receipt)
+            && string.IsNullOrWhiteSpace(zReport)
+            && string.IsNullOrWhiteSpace(date))
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string> { "STORNO" };
+        if (!string.IsNullOrWhiteSpace(receipt))
+            parts.Add($"BON {receipt}");
+        if (!string.IsNullOrWhiteSpace(zReport))
+            parts.Add($"Z{zReport}");
+        if (!string.IsNullOrWhiteSpace(date))
+            parts.Add(date);
+
+        return string.Join(' ', parts);
     }
 
     internal static IEnumerable<string> BuildPaymentLines(PrintJob job)

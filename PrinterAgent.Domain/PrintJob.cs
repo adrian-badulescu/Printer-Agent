@@ -31,6 +31,9 @@ public class PrintJobPayload
     [JsonPropertyName("restaurantName")]
     public string? RestaurantName { get; set; }
 
+    [JsonPropertyName("registrationNumber")]
+    public string? RegistrationNumber { get; set; }
+
     [JsonPropertyName("tableName")]
     public string? TableName { get; set; }
 

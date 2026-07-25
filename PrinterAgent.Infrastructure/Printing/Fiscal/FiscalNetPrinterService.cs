@@ -29,6 +29,9 @@ public sealed class FiscalNetPrinterService : IPrinterService
             case "fiscal-invoice":
                 lines = FiscalNetReceiptLineBuilder.Build(job, printer);
                 break;
+            case "fiscal-storno-reso":
+                lines = FiscalNetReceiptLineBuilder.BuildStorno(job, printer);
+                break;
             default:
                 _logger.LogWarning(
                     "FiscalNet printer {PrinterName} received unsupported payload type {PayloadType}.",

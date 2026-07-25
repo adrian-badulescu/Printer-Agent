@@ -132,7 +132,9 @@ public class EscPosPrinterService : IPrinterService
         var bundledHeader = Path.Combine(AppContext.BaseDirectory, ReceiptHeaderAsciiReader.FileName);
         var headerLines = ReceiptHeaderAsciiReader.ReadLines(bundledPath: bundledHeader);
 
-        var restaurantName = SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
+        var restaurantName = ReceiptRestaurantHeaderHelper.SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
+        var registrationLine = ReceiptRestaurantHeaderHelper.SafeAscii(
+            ReceiptRestaurantHeaderHelper.FormatRegistrationLine(job.Payload.RegistrationNumber)).ToUpperInvariant();
         var tableName = SafeAscii(job.Payload.TableName);
         var currency = SafeAscii(job.Payload.Currency);
 
@@ -143,6 +145,8 @@ public class EscPosPrinterService : IPrinterService
         bw.Write(Encoding.ASCII.GetBytes("Non Fiscal\n"));
         if (!string.IsNullOrWhiteSpace(restaurantName))
             bw.Write(Encoding.ASCII.GetBytes($"{restaurantName}\n"));
+        if (!string.IsNullOrWhiteSpace(registrationLine))
+            bw.Write(Encoding.ASCII.GetBytes($"{registrationLine}\n"));
         bw.Write(Encoding.ASCII.GetBytes("\n"));
         bw.Write(new byte[] { 0x1B, 0x61, 0x00 });
 

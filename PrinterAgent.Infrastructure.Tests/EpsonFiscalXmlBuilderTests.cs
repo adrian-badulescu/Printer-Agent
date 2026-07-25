@@ -59,6 +59,31 @@ public sealed class EpsonFiscalXmlBuilderTests
     }
 
     [Fact]
+    public void BuildFiscalReceiptXml_includes_registration_number_header_message()
+    {
+        var printer = new Domain.Printer
+        {
+            Fiscal = new Domain.FiscalPrinterSettings { OperatorId = 1, DefaultDepartment = 1 },
+        };
+        var payload = new Domain.PrintJobPayload
+        {
+            Type = "fiscal-receipt",
+            RestaurantName = "Trattoria Roma",
+            RegistrationNumber = "IT12345678901",
+            OrderId = "order-42",
+            FinalTotal = 5m,
+            PaymentMethod = "cash",
+            Items = [new Domain.PrintJobItem { Name = "Caffe", Quantity = 1, UnitPrice = 5m, VatGroup = 1 }],
+        };
+
+        var xml = EpsonFiscalXmlBuilder.BuildFiscalReceiptXml(payload, printer);
+
+        Assert.Contains("message=\"Trattoria Roma\"", xml, StringComparison.Ordinal);
+        Assert.Contains("message=\"Reg. No: IT12345678901\"", xml, StringComparison.Ordinal);
+        Assert.Contains("message=\"Order: order-42\"", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildFiscalReceiptXml_skips_local_order_id_header()
     {
         var printer = new Domain.Printer { Fiscal = new Domain.FiscalPrinterSettings { OperatorId = 1 } };

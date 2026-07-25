@@ -43,6 +43,27 @@ public sealed class FiscalNetNonFiscalLineBuilderTests
     }
 
     [Fact]
+    public void Build_emits_registration_number_after_restaurant_name()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "bill",
+                OrderId = "ord-1",
+                RestaurantName = "Test Restaurant",
+                RegistrationNumber = "RO12345678",
+                Items = [new PrintJobItem { Name = "Pizza", Quantity = 1, UnitPrice = 10m }]
+            }
+        };
+
+        var lines = FiscalNetNonFiscalLineBuilder.Build(job, new Printer());
+
+        Assert.Contains(lines, line => line.Contains("TEST RESTAURANT", StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.Contains("REG. NO: RO12345678", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Build_sanitizes_caret_in_item_names()
     {
         var job = new PrintJob

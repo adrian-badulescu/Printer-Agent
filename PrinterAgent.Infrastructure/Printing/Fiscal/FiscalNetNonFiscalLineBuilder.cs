@@ -19,9 +19,14 @@ public static class FiscalNetNonFiscalLineBuilder
 
         lines.Add(ToTextLine("Non Fiscal"));
 
-        var restaurantName = SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
+        var restaurantName = ReceiptRestaurantHeaderHelper.SafeAscii(job.Payload.RestaurantName).ToUpperInvariant();
         if (!string.IsNullOrWhiteSpace(restaurantName))
             lines.Add(ToTextLine(restaurantName));
+
+        var registrationLine = ReceiptRestaurantHeaderHelper.SafeAscii(
+            ReceiptRestaurantHeaderHelper.FormatRegistrationLine(job.Payload.RegistrationNumber)).ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(registrationLine))
+            lines.Add(ToTextLine(registrationLine));
 
         var orderId = SafeAscii(job.Payload.OrderId);
         if (!string.IsNullOrWhiteSpace(orderId))

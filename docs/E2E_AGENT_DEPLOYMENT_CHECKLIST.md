@@ -84,6 +84,8 @@ Restaurantele cu casă de marcat **nu** instalează ESC/POS pe `:9100`. O singur
 |---------------|----------------|-------------------|
 | **Print** (notă de plată) | `bill` | Linii `TL^` (bon nefiscal) |
 | **Bon fiscal** | `fiscal-receipt` | Linii `S^` / `P^` |
+| **Factură fiscală (RO)** | `fiscal-invoice` | Aceleași linii ca bonul (`S^` / `P^`); opțional `CF^` client |
+| **Storno (RO, post-vânzare)** | `fiscal-storno-reso` | `TL^` referință bon + linii `VS^` + `P^` (vezi mai jos) |
 | **Deschide sertar** | `fiscal-command` | `DS^` |
 
 Când **Bon fiscal activ** în manager:
@@ -99,6 +101,20 @@ curl.exe -X POST "http://127.0.0.1:65400/api/Receipt" `
 ```
 
 Verificare: `c:\FiscalNet\Istoric\*.txt` — notă de plată = doar `TL^`, bon fiscal = `S^` + `P^`.
+
+**Factură + storno (RO, post-vânzare):**
+
+- UI: `/manager/table-orders` și `/staff/table-orders` — factură (print/PDF/email) și storno **nu** din POS `manage-orders`.
+- Backend persistă `FiscalDocuments` la enqueue; la `Success` agentul trimite `fiscalNumber`, `zReportNumber`, `fiscalDate` în callback status.
+- **Storno FiscalNet:** agentul generează un bon nou cu linii `VS^` (vânzare negativă), antet `TL^STORNO BON {nr} Z{z} {dată}` și încasare `P^`. Sintaxă aliniată cu exemplele FiscalNet (`BonuriTest` / `bon_complex.txt`). `ST^` = subtotal, **nu** storno; `VB^` = anulare bon **deschis** (în curs) — **nu** e folosit în fluxul nostru post-vânzare.
+- Test unitar linii storno: `dotnet test PrinterAgent.Infrastructure.Tests --filter "FullyQualifiedName~FiscalNetReceiptLineBuilderTests.BuildStorno"`.
+
+**Note importante (storno RO / FiscalNet):**
+
+- Bonul sursă trebuie **`Issued`** cu nr. fiscal, Z și dată (returnate de agent la emitere).
+- Unele modele DATECS **nu suportă `VS^`** → eroare **1015** pe casă; depinde de model/firmware.
+- **`VB^`** rămâne doar pentru anulare bon deschis — nu e folosit în fluxul nostru post-vânzare.
+- **Deploy:** Printer-Agent + backend + frontend. Apoi testează storno pe o comandă cu bon fiscal emis.
 
 #### Setup Italia — Epson fiscal (fpmate.cgi / ePOS-Fiscal-Print)
 
@@ -161,7 +177,7 @@ Piața IT folosește **Epson FP-81/90 RT** cu **web server Intelligent** pe impr
 
 - UI: rute partajate `/manager/table-orders` și `/staff/table-orders` — **nu** din POS `manage-orders`.
 - Backend persistă `FiscalDocuments` la enqueue; la `Success` agentul trimite `fiscalNumber`, `zReportNumber`, `fiscalDate` în callback status.
-- Storno necesită document sursă `Issued` (Receipt sau Invoice) cu Z + număr + dată din callback imprimantă.
+- Storno necesită document sursă **`Issued`** (Receipt sau Invoice) cu Z + număr + dată din callback imprimantă.
 - Stub: `printerFiscalDocument` → `fiscalDocumentNumber` în `addInfo`; reso cu `REFUND` → `fiscalReceiptNumber`.
 - Test unitar lanț: `dotnet test PrinterAgent.Infrastructure.Tests --filter "FullyQualifiedName~EpsonFiscalEndToEnd"`.
 

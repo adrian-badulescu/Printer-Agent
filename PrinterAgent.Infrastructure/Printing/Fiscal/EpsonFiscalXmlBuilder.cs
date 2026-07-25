@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security;
 using System.Text;
 using PrinterAgent.Domain;
+using PrinterAgent.Infrastructure.Printing;
 
 namespace PrinterAgent.Infrastructure.Printing.Fiscal;
 
@@ -66,6 +67,12 @@ public static class EpsonFiscalXmlBuilder
         sb.Append("<printerFiscalDocument>");
 
         var headerIndex = AppendInvoiceMessage(sb, op, 5, 1, payload.RestaurantName);
+        headerIndex = AppendInvoiceMessage(
+            sb,
+            op,
+            5,
+            headerIndex,
+            ReceiptRestaurantHeaderHelper.FormatRegistrationLine(payload.RegistrationNumber));
         headerIndex = AppendInvoiceMessage(sb, op, 5, headerIndex, payload.TableName);
         if (!string.IsNullOrWhiteSpace(payload.OrderId)
             && !payload.OrderId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
@@ -118,6 +125,7 @@ public static class EpsonFiscalXmlBuilder
         sb.Append(CultureInfo.InvariantCulture, $"<beginNonFiscal operator=\"{op}\" />");
 
         AppendPrintNormal(sb, op, payload.RestaurantName);
+        AppendPrintNormal(sb, op, ReceiptRestaurantHeaderHelper.FormatRegistrationLine(payload.RegistrationNumber));
         AppendPrintNormal(sb, op, payload.TableName);
         if (!string.IsNullOrWhiteSpace(payload.OrderId)
             && !payload.OrderId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
@@ -267,6 +275,11 @@ public static class EpsonFiscalXmlBuilder
     {
         var index = 1;
         index = AppendFiscalHeaderMessage(sb, op, index, payload.RestaurantName);
+        index = AppendFiscalHeaderMessage(
+            sb,
+            op,
+            index,
+            ReceiptRestaurantHeaderHelper.FormatRegistrationLine(payload.RegistrationNumber));
         if (!string.IsNullOrWhiteSpace(payload.OrderId)
             && !payload.OrderId.StartsWith("local-", StringComparison.OrdinalIgnoreCase))
         {
