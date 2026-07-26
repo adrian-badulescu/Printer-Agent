@@ -104,6 +104,9 @@ public class PrintJobItem
     [JsonPropertyName("vatGroup")]
     public int? VatGroup { get; set; }
 
+    [JsonPropertyName("vatPercent")]
+    public decimal? VatPercent { get; set; }
+
     [JsonPropertyName("department")]
     public int? Department { get; set; }
 }

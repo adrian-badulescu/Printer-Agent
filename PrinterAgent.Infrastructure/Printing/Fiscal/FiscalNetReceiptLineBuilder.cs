@@ -32,7 +32,7 @@ public static class FiscalNetReceiptLineBuilder
         {
             var qty = item.Quantity <= 0 ? 1 : item.Quantity;
             var unit = RoundMoney(item.UnitPrice ?? item.Price);
-            var name = Truncate(Sanitize(item.Name), MaxNameLength);
+            var name = FormatItemDisplayName(item.Name, item.VatPercent);
             var vatGroup = item.VatGroup is >= 1 and <= 5 ? item.VatGroup.Value : defaultVat;
             var department = item.Department ?? defaultDept;
             lines.Add($"S^{name}^{FormatPrice(unit)}^{FormatQuantity(qty)}^buc^{vatGroup}^{department}");
@@ -70,7 +70,7 @@ public static class FiscalNetReceiptLineBuilder
         {
             var qty = item.Quantity <= 0 ? 1 : item.Quantity;
             var unit = RoundMoney(item.UnitPrice ?? item.Price);
-            var name = Truncate(Sanitize(item.Name), MaxNameLength);
+            var name = FormatItemDisplayName(item.Name, item.VatPercent);
             var vatGroup = item.VatGroup is >= 1 and <= 5 ? item.VatGroup.Value : defaultVat;
             var department = item.Department ?? defaultDept;
             lines.Add($"VS^{name}^{FormatPrice(unit)}^{FormatQuantity(qty)}^buc^{vatGroup}^{department}");
@@ -167,4 +167,21 @@ public static class FiscalNetReceiptLineBuilder
 
     internal static string Truncate(string value, int max) =>
         value.Length <= max ? value : value[..max];
+
+    internal static string FormatItemDisplayName(string? name, decimal? vatPercent)
+    {
+        var sanitized = Sanitize(name);
+        if (string.IsNullOrWhiteSpace(sanitized))
+            return string.Empty;
+
+        if (!vatPercent.HasValue || vatPercent.Value is < 0 or > 100)
+            return Truncate(sanitized, MaxNameLength);
+
+        var pct = vatPercent.Value % 1m == 0m
+            ? ((int)vatPercent.Value).ToString(CultureInfo.InvariantCulture)
+            : vatPercent.Value.ToString("0.##", CultureInfo.InvariantCulture);
+        var suffix = $" TVA {pct}%";
+        var maxNameLength = Math.Max(1, MaxNameLength - suffix.Length);
+        return Truncate(sanitized, maxNameLength) + suffix;
+    }
 }

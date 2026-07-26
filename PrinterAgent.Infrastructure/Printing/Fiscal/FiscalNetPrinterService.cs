@@ -45,11 +45,20 @@ public sealed class FiscalNetPrinterService : IPrinterService
         if (response.Success)
         {
             _logger.LogInformation(
-                "FiscalNet job {JobId} ({PayloadType}) printed on {PrinterName}. Receipt={ReceiptNumber}.",
+                "FiscalNet job {JobId} ({PayloadType}) printed on {PrinterName}. Receipt={ReceiptNumber}. Z={ZReport}. Date={FiscalDate}.",
                 job.RedisMessageId,
                 payloadType,
                 printer.Name,
-                response.FiscalReceiptNumber);
+                response.FiscalReceiptNumber,
+                response.ZReportNumber ?? "(missing)",
+                response.FiscalDate ?? "(missing)");
+            if (IsFiscalDocumentPayload(payloadType)
+                && string.IsNullOrWhiteSpace(response.ZReportNumber))
+            {
+                _logger.LogWarning(
+                    "FiscalNet job {JobId}: Z report number missing in driver response; storno will fail until NRZ is available.",
+                    job.RedisMessageId);
+            }
             return response.ToPrintJobResult();
         }
 
@@ -62,4 +71,7 @@ public sealed class FiscalNetPrinterService : IPrinterService
             response.ErrorCode);
         return response.ToPrintJobResult();
     }
+
+    private static bool IsFiscalDocumentPayload(string payloadType) =>
+        payloadType is "fiscal-receipt" or "fiscal-invoice" or "fiscal-storno-reso";
 }

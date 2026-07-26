@@ -40,6 +40,26 @@ public sealed class FiscalNetHttpClientTests
 
         Assert.True(result.Success);
         Assert.Equal("0042", result.FiscalReceiptNumber);
+        Assert.NotNull(result.FiscalDate);
+    }
+
+    [Fact]
+    public void ParseResponse_success_reads_nrbon_nrz_and_data()
+    {
+        const string body = """
+            ["BONOK=1","NRBON=0042","NRZ=0003","DATA=22072026"]
+            """;
+        var result = FiscalNetHttpClient.ParseResponse(body);
+
+        Assert.True(result.Success);
+        Assert.Equal("0042", result.FiscalReceiptNumber);
+        Assert.Equal("0003", result.ZReportNumber);
+        Assert.Equal("22072026", result.FiscalDate);
+
+        var jobResult = result.ToPrintJobResult();
+        Assert.Equal("0042", jobResult.FiscalNumber);
+        Assert.Equal("0003", jobResult.ZReportNumber);
+        Assert.Equal("22072026", jobResult.FiscalDate);
     }
 
     [Fact]

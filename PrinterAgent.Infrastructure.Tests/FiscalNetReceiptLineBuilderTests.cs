@@ -81,6 +81,30 @@ public sealed class FiscalNetReceiptLineBuilderTests
     }
 
     [Fact]
+    public void Build_appends_vat_percent_to_item_name_and_uses_vat_group()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "fiscal-invoice",
+                PaymentMethod = "cash",
+                CustomerFiscalCode = "RO123",
+                Items =
+                [
+                    new PrintJobItem { Name = "Greek Salad", Quantity = 1, UnitPrice = 10m, VatGroup = 2, VatPercent = 11m },
+                    new PrintJobItem { Name = "Pizza", Quantity = 1, UnitPrice = 23m, VatGroup = 1, VatPercent = 23m },
+                ]
+            }
+        };
+
+        var lines = FiscalNetReceiptLineBuilder.Build(job, new Printer { Fiscal = new FiscalPrinterSettings() });
+
+        Assert.Contains("S^Greek Salad TVA 11%^1000^1000^buc^2^1", lines);
+        Assert.Contains("S^Pizza TVA 23%^2300^1000^buc^1^1", lines);
+    }
+
+    [Fact]
     public void BuildStorno_emits_VS_lines_reference_and_payment()
     {
         var job = new PrintJob

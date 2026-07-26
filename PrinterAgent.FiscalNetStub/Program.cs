@@ -2,6 +2,10 @@ var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 var receiptCounter = 0;
+var zReportNumber = Environment.GetEnvironmentVariable("FISCALNET_STUB_ZREPORT")?.Trim();
+if (string.IsNullOrWhiteSpace(zReportNumber))
+    zReportNumber = "0001";
+
 var port = int.TryParse(Environment.GetEnvironmentVariable("FISCALNET_STUB_PORT"), out var p) ? p : 65400;
 
 app.MapPost("/api/Receipt", async (HttpRequest request) =>
@@ -12,8 +16,15 @@ app.MapPost("/api/Receipt", async (HttpRequest request) =>
     Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message} body={body}");
 
     receiptCounter++;
-    return Results.Json(new[] { "BONOK=1", receiptCounter.ToString("D4") });
+    var fiscalDate = DateTime.Now.ToString("ddMMyyyy");
+    return Results.Json(new[]
+    {
+        "BONOK=1",
+        $"NRBON={receiptCounter:D4}",
+        $"NRZ={zReportNumber}",
+        $"DATA={fiscalDate}",
+    });
 });
 
-Console.WriteLine($"FiscalNet stub listening on http://127.0.0.1:{port}/api/Receipt");
-app.Run($"http://127.0.0.1:{port}");
+Console.WriteLine($"FiscalNet stub listening on http://192.168.43.237:{port}/api/Receipt");
+app.Run($"http://192.168.43.237:{port}");

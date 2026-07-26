@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -82,14 +83,20 @@ public sealed class FiscalNetHttpClient
         if (bonOk == -1)
             return BuildFailureResponse("BONOK=-1", body);
 
-        var receiptNumber = TryReadReceiptNumber(body);
+        var lines = EnumerateCandidateLines(body).ToList();
+        var receiptNumber = TryReadReceiptNumber(lines) ?? TryReadReceiptNumberFromJsonObject(body);
         var success = bonOk == 1 || (bonOk is null && !string.IsNullOrWhiteSpace(receiptNumber));
         if (success)
         {
+            var zReportNumber = TryReadZReportNumber(lines);
+            var fiscalDate = TryReadFiscalDate(lines) ?? GetRomaniaLocalDateDdMmYyyy();
+
             return new FiscalNetResponse
             {
                 Success = true,
                 FiscalReceiptNumber = receiptNumber,
+                ZReportNumber = zReportNumber,
+                FiscalDate = fiscalDate,
                 RawResponse = body,
             };
         }
@@ -151,35 +158,88 @@ public sealed class FiscalNetHttpClient
         return null;
     }
 
-    private static string? TryReadReceiptNumber(string body)
+    private static string? TryReadReceiptNumber(IReadOnlyList<string> lines)
     {
-        var lines = EnumerateCandidateLines(body).ToList();
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("NRBON=", StringComparison.OrdinalIgnoreCase))
+                return line["NRBON=".Length..].Trim();
+        }
+
         for (var i = 0; i < lines.Count; i++)
         {
             if (!lines[i].StartsWith("BONOK=", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (i + 1 < lines.Count && !string.IsNullOrWhiteSpace(lines[i + 1]))
-                return lines[i + 1].Trim();
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.ValueKind == JsonValueKind.Object)
             {
-                if (doc.RootElement.TryGetProperty("fiscalReceiptNumber", out var n))
-                    return n.GetString();
-                if (doc.RootElement.TryGetProperty("receiptNumber", out var r))
-                    return r.GetString();
+                var candidate = lines[i + 1].Trim();
+                if (!candidate.Contains('=', StringComparison.Ordinal))
+                    return candidate;
             }
-        }
-        catch (JsonException)
-        {
-            // not JSON
         }
 
         return null;
+    }
+
+    private static string? TryReadReceiptNumberFromJsonObject(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return null;
+
+            if (doc.RootElement.TryGetProperty("fiscalReceiptNumber", out var n))
+                return n.GetString();
+
+            if (doc.RootElement.TryGetProperty("receiptNumber", out var r))
+                return r.GetString();
+        }
+        catch (JsonException)
+        {
+            // not JSON object
+        }
+
+        return null;
+    }
+
+    private static string? TryReadZReportNumber(IReadOnlyList<string> lines)
+    {
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("NRZ=", StringComparison.OrdinalIgnoreCase))
+                return line["NRZ=".Length..].Trim();
+
+            if (line.StartsWith("Z=", StringComparison.OrdinalIgnoreCase))
+                return line["Z=".Length..].Trim();
+        }
+
+        return null;
+    }
+
+    private static string? TryReadFiscalDate(IReadOnlyList<string> lines)
+    {
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("DATA=", StringComparison.OrdinalIgnoreCase))
+                return line["DATA=".Length..].Trim();
+
+            if (line.StartsWith("DATABON=", StringComparison.OrdinalIgnoreCase))
+                return line["DATABON=".Length..].Trim();
+
+            if (line.StartsWith("DATADOC=", StringComparison.OrdinalIgnoreCase))
+                return line["DATADOC=".Length..].Trim();
+        }
+
+        return null;
+    }
+
+    internal static string GetRomaniaLocalDateDdMmYyyy()
+    {
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Bucharest");
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
+        return localNow.ToString("ddMMyyyy", CultureInfo.InvariantCulture);
     }
 
     private static IEnumerable<string> EnumerateCandidateLines(string body)
