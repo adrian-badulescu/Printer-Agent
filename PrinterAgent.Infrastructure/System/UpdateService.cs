@@ -73,6 +73,23 @@ public class UpdateService : IUpdateService
         if (!TryValidateManifestSignature(manifest))
             return;
 
+        if (!ReleaseUpdateHelper.SupportsSilentAutoApply(_appConfiguration.Version))
+        {
+            _logger.LogWarning(
+                "Update {RemoteVersion} is available but auto-apply requires agent {MinimumVersion}+ (current {LocalVersion}). " +
+                "Install once manually; enrollment in ProgramData is preserved.",
+                manifest.Version,
+                ReleaseUpdateHelper.MinimumAutoApplyVersion,
+                _appConfiguration.Version);
+            return;
+        }
+
+        if (UpdateApplyGuard.ShouldSkipApply(out var skipReason))
+        {
+            _logger.LogInformation("Skipping update apply: {Reason}.", skipReason);
+            return;
+        }
+
         _logger.LogInformation(
             "Update available: {Version}. Downloading from {Url}",
             manifest.Version,
@@ -96,10 +113,20 @@ public class UpdateService : IUpdateService
         {
             _logger.LogError("Update rejected: SHA256 mismatch for version {Version}.", manifest.Version);
             TryDeleteInstaller(installerPath);
+            UpdateApplyGuard.MarkApplyFailed();
             return;
         }
 
-        LaunchInstallerAndExit(installerPath);
+        try
+        {
+            UpdateApplyGuard.MarkApplyStarting();
+            LaunchInstallerAndExit(installerPath);
+        }
+        catch
+        {
+            UpdateApplyGuard.MarkApplyFailed();
+            throw;
+        }
     }
 
     private bool TryValidateManifestSignature(ReleaseManifest manifest)

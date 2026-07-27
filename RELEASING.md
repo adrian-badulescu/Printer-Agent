@@ -51,7 +51,8 @@ Dacă un client are deja o instalare stricată: trimite același link de downloa
 
 ## Cum publici
 
-1. Actualizează versiunea în `Package.wxs`, `Bundle.wxs`, și `Version` din `PrinterAgent.Worker/agent.json`.
+1. Actualizează versiunea **în același commit** în `Package.wxs`, `Bundle.wxs` (format `1.5.4.0`) și `Version` din `PrinterAgent.Worker/agent.json` (format `1.5.4`).
+2. Tag-ul git trebuie să fie `v` + aceeași versiune (ex. `v1.5.4`). CI verifică alinierea la build pe tag.
 2. Setează **`BackendUrl`** în `agent.json` (fără parolă Redis în commit).
 3. Push pe `main` → CI produce artifact; sau tag pentru Release:
    ```bash

@@ -39,4 +39,14 @@ public sealed class ReleaseUpdateHelperTests
             },
             "1.0.0"));
     }
+
+    [Theory]
+    [InlineData("1.5.4", true)]
+    [InlineData("1.5.5", true)]
+    [InlineData("1.4.9", false)]
+    [InlineData("1.5.3", false)]
+    public void SupportsSilentAutoApply_requires_1_5_4_or_newer(string local, bool expected)
+    {
+        Assert.Equal(expected, ReleaseUpdateHelper.SupportsSilentAutoApply(local));
+    }
 }

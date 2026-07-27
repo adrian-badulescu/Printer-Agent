@@ -4,6 +4,9 @@ namespace PrinterAgent.Infrastructure.System;
 
 internal static class ReleaseUpdateHelper
 {
+    /// <summary>First release with aligned WiX MajorUpgrade + delayed silent installer.</summary>
+    internal const string MinimumAutoApplyVersion = "1.5.4";
+
     public static bool IsRemoteVersionNewer(string localVersion, string remoteVersion)
     {
         if (!Version.TryParse(NormalizeVersion(localVersion), out var local)
@@ -25,6 +28,18 @@ internal static class ReleaseUpdateHelper
         }
 
         return IsRemoteVersionNewer(localVersion, manifest.Version);
+    }
+
+    /// <summary>Agents below 1.5.4 must not self-exit for update (legacy installer race left service missing).</summary>
+    public static bool SupportsSilentAutoApply(string localVersion)
+    {
+        if (!Version.TryParse(NormalizeVersion(localVersion), out var local)
+            || !Version.TryParse(NormalizeVersion(MinimumAutoApplyVersion), out var minimum))
+        {
+            return false;
+        }
+
+        return local >= minimum;
     }
 
     /// <summary>Normalizes semver tags like <c>v1.5.0</c> for <see cref="Version.TryParse"/>.</summary>

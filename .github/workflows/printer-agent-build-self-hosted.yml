@@ -37,6 +37,14 @@ jobs:
           Write-Host 'dotnet SDK OK:'
           dotnet --list-sdks | Select-String '10\.'
 
+      - name: Assert release version alignment (tag v* only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'scripts\Assert-ReleaseVersionAlignment.ps1')
+
       - name: Inject production config from GitHub Secrets
         shell: powershell
         env:
