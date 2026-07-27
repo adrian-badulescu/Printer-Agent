@@ -140,7 +140,7 @@ public class AppConfiguration : IAppConfiguration
 
     public string Version => MergedString("Version") ?? "1.0.0";
 
-    public string UpdateSignatureSecret => MergedString("UpdateSignatureSecret") ?? string.Empty;
+    public string UpdateSignatureSecret => (MergedString("UpdateSignatureSecret") ?? string.Empty).Trim();
 
     public string UpdateManifestUrl => MergedString("UpdateManifestUrl") ?? string.Empty;
 

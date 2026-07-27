@@ -73,9 +73,9 @@ Manifest (generat de CI):
 
 `https://github.com/adrian-badulescu/Printer-Agent/releases/latest/download/release-manifest.json`
 
-Agentul compară `manifest.version` cu `Version` locală din install-dir, verifică semnătura + hash, descarcă EXE, rulează `/quiet /norestart`.
+Agentul compară `manifest.version` cu `Version` locală din install-dir, verifică semnătura + hash, descarcă EXE în `%ProgramData%\URSPrinterAgent\updates\`, apoi lansează installer-ul cu ~7s întârziere (serviciul iese înainte ca WiX să facă upgrade).
 
-**Release operator:** bump versiuni → `git tag vX.Y.Z` → push tag. **Fără** modificări env backend.
+Log installer auto-update: `%TEMP%\urs-agent-update.log`
 
 **Prima activare:** agenții foarte vechi (fără `UpdateManifestUrl` / secret real) pot necesita o reinstalare manuală; după aceea lanțul auto-update funcționează.
 

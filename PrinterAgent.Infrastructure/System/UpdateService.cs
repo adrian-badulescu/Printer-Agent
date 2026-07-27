@@ -84,8 +84,10 @@ public class UpdateService : IUpdateService
             return;
         }
 
+        var updatesDir = UpdateInstallerLauncher.GetUpdatesDirectory();
+        Directory.CreateDirectory(updatesDir);
         var installerPath = Path.Combine(
-            Path.GetTempPath(),
+            updatesDir,
             $"PrinterAgent_Update_{ReleaseUpdateHelper.NormalizeVersion(manifest.Version)}.exe");
 
         await DownloadFileAsync(http, downloadUri, installerPath, cancellationToken).ConfigureAwait(false);
@@ -112,7 +114,16 @@ public class UpdateService : IUpdateService
                     manifest.Sha256,
                     manifest.Signature))
             {
-                _logger.LogError("Update rejected: manifest signature mismatch for version {Version}.", manifest.Version);
+                var installDirConfig = Path.Combine(AppContext.BaseDirectory, "agent.json");
+                _logger.LogError(
+                    "Update rejected: manifest signature mismatch for version {Version}. " +
+                    "UpdateSignatureSecret is loaded from install-dir ({InstallDirConfig}), not ProgramData. " +
+                    "Secret length={SecretLength}, manifest signature length={SignatureLength}. " +
+                    "Run scripts/Verify-ReleaseManifestSignature.ps1 to compare payload.",
+                    manifest.Version,
+                    installDirConfig,
+                    secret.Length,
+                    manifest.Signature?.Length ?? 0);
                 return false;
             }
 
@@ -165,7 +176,9 @@ public class UpdateService : IUpdateService
             return;
         }
 
-        var installerPath = Path.Combine(Path.GetTempPath(), $"PrinterAgent_Update_{updateInfo.Version}.exe");
+        var updatesDir = UpdateInstallerLauncher.GetUpdatesDirectory();
+        Directory.CreateDirectory(updatesDir);
+        var installerPath = Path.Combine(updatesDir, $"PrinterAgent_Update_{updateInfo.Version}.exe");
         var http = _httpClientFactory.CreateClient("ReleaseUpdate");
         await DownloadFileAsync(http, downloadUri, installerPath, cancellationToken).ConfigureAwait(false);
         LaunchInstallerAndExit(installerPath);
@@ -195,18 +208,13 @@ public class UpdateService : IUpdateService
 
     private void LaunchInstallerAndExit(string installerPath)
     {
-        _logger.LogInformation("Download complete. Starting installer and exiting.");
-
         var logPath = Path.Combine(Path.GetTempPath(), "urs-agent-update.log");
-        var psi = new ProcessStartInfo
-        {
-            FileName = installerPath,
-            Arguments = $"/quiet /norestart /log \"{logPath}\"",
-            UseShellExecute = true
-        };
-        Process.Start(psi);
+        _logger.LogInformation(
+            "Download complete. Scheduling silent installer in ~{DelaySeconds}s (log: {LogPath}). Service will exit.",
+            UpdateInstallerLauncher.DefaultDelayPingCount - 1,
+            logPath);
 
-        Environment.Exit(0);
+        UpdateInstallerLauncher.LaunchDelayedInstallAndExit(installerPath, logPath);
     }
 
     private void TryDeleteInstaller(string installerPath)
