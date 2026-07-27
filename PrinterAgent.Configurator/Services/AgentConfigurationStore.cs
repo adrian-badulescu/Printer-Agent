@@ -67,6 +67,7 @@ public sealed class AgentConfigurationStore
             ["BackendUrl"] = "",
             ["BackendJwtToken"] = "",
             ["UpdateSignatureSecret"] = "change-me-same-as-backend-PrinterAgent",
+            ["UpdateManifestUrl"] = "https://github.com/adrian-badulescu/Printer-Agent/releases/latest/download/release-manifest.json",
             ["Version"] = "1.0.7",
             ["MaxPrintRetryAttempts"] = 5,
             ["PrintRetryBaseDelayMs"] = 1000,

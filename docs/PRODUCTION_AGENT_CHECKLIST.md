@@ -9,7 +9,7 @@ Use before tagging a production release (`v*`).
 | Public API | `Invoke-WebRequest https://universalrestaurant.systems/api/ping-lite` | HTTP 200 |
 | EF migrations | On production DB | `PrinterAgentEnrollmentCodes`, `PrinterAgentRegistrations`, `PrinterAgentRestaurantRedisCredentials`, refresh columns |
 | Enrollment pepper | `/etc/urs/qrapi-production.env` → `PrinterAgent__EnrollmentCodePepper` | Non-empty |
-| Update signature | `PrinterAgent__UpdateSignatureSecret` | Matches value baked into MSI at CI build |
+| Update signature | `PrinterAgent__UpdateSignatureSecret` (backend legacy) **sau** GitHub secret `UPDATE_SIGNATURE_SECRET` (auto-update manifest) | Același secret injectat în MSI la CI |
 | Redis VPS | From App VPS with WG: `redis-cli -h 10.60.0.2 -a 'PASSWORD' ping` | `PONG` |
 | WireGuard SSH | `wg-peer-upsert` on hub; `AllowedIps` = `10.60.0.2/32` | Hub layout: [wireguard-ssh-provisioning/PRODUCTION_HUB.md](wireguard-ssh-provisioning/PRODUCTION_HUB.md) |
 | Enrollment code | Manager UI → Settings → printer agent | New 10-char code for pilot restaurant |

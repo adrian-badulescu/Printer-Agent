@@ -37,6 +37,7 @@ public class AppConfiguration : IAppConfiguration
     {
         "BackendUrl",
         "UpdateSignatureSecret",
+        "UpdateManifestUrl",
         "Version",
         "Redis:Host",
         "Redis:Port",
@@ -140,6 +141,8 @@ public class AppConfiguration : IAppConfiguration
     public string Version => MergedString("Version") ?? "1.0.0";
 
     public string UpdateSignatureSecret => MergedString("UpdateSignatureSecret") ?? string.Empty;
+
+    public string UpdateManifestUrl => MergedString("UpdateManifestUrl") ?? string.Empty;
 
     public int MaxPrintRetryAttempts =>
         int.TryParse(MergedString("MaxPrintRetryAttempts"), out var n) ? Math.Clamp(n, 1, 30) : 5;

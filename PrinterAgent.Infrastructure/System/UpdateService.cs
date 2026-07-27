@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using PrinterAgent.Application.Interfaces;
+using PrinterAgent.Domain;
 using PrinterAgent.Infrastructure.Security;
 
 namespace PrinterAgent.Infrastructure.System;
@@ -8,15 +11,18 @@ namespace PrinterAgent.Infrastructure.System;
 public class UpdateService : IUpdateService
 {
     private readonly IBackendClient _backendClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAppConfiguration _appConfiguration;
     private readonly ILogger<UpdateService> _logger;
 
     public UpdateService(
         IBackendClient backendClient,
+        IHttpClientFactory httpClientFactory,
         IAppConfiguration appConfiguration,
         ILogger<UpdateService> logger)
     {
         _backendClient = backendClient;
+        _httpClientFactory = httpClientFactory;
         _appConfiguration = appConfiguration;
         _logger = logger;
     }
@@ -25,59 +31,194 @@ public class UpdateService : IUpdateService
     {
         try
         {
-            var updateInfo = await _backendClient.CheckForUpdatesAsync(agentId, cancellationToken);
-            if (updateInfo == null || !updateInfo.UpdateAvailable || updateInfo.Version == _appConfiguration.Version)
-                return;
-
-            if (!string.IsNullOrEmpty(_appConfiguration.UpdateSignatureSecret))
+            if (!string.IsNullOrWhiteSpace(_appConfiguration.UpdateManifestUrl))
             {
-                if (!UpdateSignature.Verify(
-                        _appConfiguration.UpdateSignatureSecret,
-                        updateInfo.Version,
-                        updateInfo.DownloadUrl,
-                        updateInfo.Signature))
-                {
-                    _logger.LogError("Update rejected: signature mismatch for version {Version}.", updateInfo.Version);
-                    return;
-                }
-            }
-            else if (!string.IsNullOrEmpty(updateInfo.Signature))
-            {
-                _logger.LogWarning("Backend sent update signature but agent has no UpdateSignatureSecret; skipping apply.");
+                await CheckAndApplyFromManifestAsync(cancellationToken).ConfigureAwait(false);
                 return;
             }
 
-            _logger.LogInformation("Update available: {Version}. Downloading from {Url}", updateInfo.Version, updateInfo.DownloadUrl);
-
-            if (!Uri.TryCreate(updateInfo.DownloadUrl, UriKind.Absolute, out var downloadUri))
-            {
-                _logger.LogError("Invalid download URL: {Url}", updateInfo.DownloadUrl);
-                return;
-            }
-
-            var installerPath = Path.Combine(Path.GetTempPath(), $"PrinterAgent_Update_{updateInfo.Version}.exe");
-
-            await using (var stream = await _backendClient.DownloadAsync(downloadUri, cancellationToken))
-            await using (var fs = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                await stream.CopyToAsync(fs, cancellationToken);
-            }
-
-            _logger.LogInformation("Download complete. Starting installer and exiting.");
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = installerPath,
-                Arguments = "/SILENT /Update",
-                UseShellExecute = true
-            };
-            Process.Start(psi);
-
-            Environment.Exit(0);
+            await CheckAndApplyFromBackendAsync(agentId, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error while checking for or applying updates.");
+        }
+    }
+
+    private async Task CheckAndApplyFromManifestAsync(CancellationToken cancellationToken)
+    {
+        var manifestUrl = _appConfiguration.UpdateManifestUrl.Trim();
+        var http = _httpClientFactory.CreateClient("ReleaseUpdate");
+
+        using var response = await http.GetAsync(manifestUrl, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == global::System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogDebug("Release manifest not found at {Url}.", manifestUrl);
+            return;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var manifest = await response.Content.ReadFromJsonAsync<ReleaseManifest>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        if (manifest is null)
+        {
+            _logger.LogWarning("Release manifest at {Url} was empty or invalid JSON.", manifestUrl);
+            return;
+        }
+
+        if (!ReleaseUpdateHelper.IsManifestApplicable(manifest, _appConfiguration.Version))
+            return;
+
+        if (!TryValidateManifestSignature(manifest))
+            return;
+
+        _logger.LogInformation(
+            "Update available: {Version}. Downloading from {Url}",
+            manifest.Version,
+            manifest.DownloadUrl);
+
+        if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out var downloadUri))
+        {
+            _logger.LogError("Invalid download URL in manifest: {Url}", manifest.DownloadUrl);
+            return;
+        }
+
+        var installerPath = Path.Combine(
+            Path.GetTempPath(),
+            $"PrinterAgent_Update_{ReleaseUpdateHelper.NormalizeVersion(manifest.Version)}.exe");
+
+        await DownloadFileAsync(http, downloadUri, installerPath, cancellationToken).ConfigureAwait(false);
+
+        if (!await VerifyFileSha256Async(installerPath, manifest.Sha256, cancellationToken).ConfigureAwait(false))
+        {
+            _logger.LogError("Update rejected: SHA256 mismatch for version {Version}.", manifest.Version);
+            TryDeleteInstaller(installerPath);
+            return;
+        }
+
+        LaunchInstallerAndExit(installerPath);
+    }
+
+    private bool TryValidateManifestSignature(ReleaseManifest manifest)
+    {
+        var secret = _appConfiguration.UpdateSignatureSecret;
+        if (!string.IsNullOrEmpty(secret))
+        {
+            if (!UpdateSignature.VerifyManifest(
+                    secret,
+                    manifest.Version,
+                    manifest.DownloadUrl,
+                    manifest.Sha256,
+                    manifest.Signature))
+            {
+                _logger.LogError("Update rejected: manifest signature mismatch for version {Version}.", manifest.Version);
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(manifest.Signature))
+        {
+            _logger.LogWarning(
+                "Release manifest is signed but agent has no UpdateSignatureSecret; skipping apply for version {Version}.",
+                manifest.Version);
+            return false;
+        }
+
+        _logger.LogWarning(
+            "Applying unsigned release manifest for version {Version} (no UpdateSignatureSecret configured).",
+            manifest.Version);
+        return true;
+    }
+
+    private async Task CheckAndApplyFromBackendAsync(string agentId, CancellationToken cancellationToken)
+    {
+        var updateInfo = await _backendClient.CheckForUpdatesAsync(agentId, cancellationToken).ConfigureAwait(false);
+        if (updateInfo == null || !updateInfo.UpdateAvailable || updateInfo.Version == _appConfiguration.Version)
+            return;
+
+        if (!string.IsNullOrEmpty(_appConfiguration.UpdateSignatureSecret))
+        {
+            if (!UpdateSignature.Verify(
+                    _appConfiguration.UpdateSignatureSecret,
+                    updateInfo.Version,
+                    updateInfo.DownloadUrl,
+                    updateInfo.Signature))
+            {
+                _logger.LogError("Update rejected: signature mismatch for version {Version}.", updateInfo.Version);
+                return;
+            }
+        }
+        else if (!string.IsNullOrEmpty(updateInfo.Signature))
+        {
+            _logger.LogWarning("Backend sent update signature but agent has no UpdateSignatureSecret; skipping apply.");
+            return;
+        }
+
+        _logger.LogInformation("Update available: {Version}. Downloading from {Url}", updateInfo.Version, updateInfo.DownloadUrl);
+
+        if (!Uri.TryCreate(updateInfo.DownloadUrl, UriKind.Absolute, out var downloadUri))
+        {
+            _logger.LogError("Invalid download URL: {Url}", updateInfo.DownloadUrl);
+            return;
+        }
+
+        var installerPath = Path.Combine(Path.GetTempPath(), $"PrinterAgent_Update_{updateInfo.Version}.exe");
+        var http = _httpClientFactory.CreateClient("ReleaseUpdate");
+        await DownloadFileAsync(http, downloadUri, installerPath, cancellationToken).ConfigureAwait(false);
+        LaunchInstallerAndExit(installerPath);
+    }
+
+    private static async Task DownloadFileAsync(
+        HttpClient http,
+        Uri downloadUri,
+        string installerPath,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = await http.GetStreamAsync(downloadUri, cancellationToken).ConfigureAwait(false);
+        await using var fs = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await stream.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<bool> VerifyFileSha256Async(
+        string filePath,
+        string expectedHex,
+        CancellationToken cancellationToken)
+    {
+        await using var fs = File.OpenRead(filePath);
+        var hash = await SHA256.HashDataAsync(fs, cancellationToken).ConfigureAwait(false);
+        var actual = Convert.ToHexString(hash);
+        return string.Equals(actual, expectedHex.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void LaunchInstallerAndExit(string installerPath)
+    {
+        _logger.LogInformation("Download complete. Starting installer and exiting.");
+
+        var logPath = Path.Combine(Path.GetTempPath(), "urs-agent-update.log");
+        var psi = new ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = $"/quiet /norestart /log \"{logPath}\"",
+            UseShellExecute = true
+        };
+        Process.Start(psi);
+
+        Environment.Exit(0);
+    }
+
+    private void TryDeleteInstaller(string installerPath)
+    {
+        try
+        {
+            if (File.Exists(installerPath))
+                File.Delete(installerPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not delete failed update installer at {Path}.", installerPath);
         }
     }
 }

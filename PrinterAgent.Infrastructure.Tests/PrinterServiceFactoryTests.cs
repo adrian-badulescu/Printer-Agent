@@ -44,6 +44,7 @@ public sealed class PrinterServiceFactoryTests
         public List<Printer> Printers => [];
         public string Version => "test";
         public string UpdateSignatureSecret => "";
+        public string UpdateManifestUrl => "";
         public int MaxPrintRetryAttempts => 1;
         public int PrintRetryBaseDelayMs => 1;
         public int PrinterConnectTimeoutSeconds => 1;

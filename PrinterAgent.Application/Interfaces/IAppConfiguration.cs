@@ -30,6 +30,8 @@ public interface IAppConfiguration
     string Version { get; }
     /// <summary>Secret partajat cu backend pentru HMAC la update (aceeași valoare ca PrinterAgent:UpdateSignatureSecret).</summary>
     string UpdateSignatureSecret { get; }
+    /// <summary>URL manifest GitHub Release (<c>release-manifest.json</c>). Gol = fallback la backend update API.</summary>
+    string UpdateManifestUrl { get; }
     int MaxPrintRetryAttempts { get; }
     int PrintRetryBaseDelayMs { get; }
 

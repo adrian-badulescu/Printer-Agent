@@ -111,6 +111,11 @@ try
             services.AddTransient<IFiscalCommandHandler, EpsonFiscalCommandHandler>();
             services.AddSingleton<IFiscalCommandRouter, FiscalCommandRouter>();
             services.AddSingleton<IPrinterServiceFactory, PrinterServiceFactory>();
+            services.AddHttpClient("ReleaseUpdate", client =>
+            {
+                client.Timeout = TimeSpan.FromMinutes(15);
+            });
+
             services.AddTransient<IUpdateService, UpdateService>();
             services.AddHttpClient<IBackendClient, BackendClient>().AddHttpMessageHandler<PrinterAgentAuthHandler>();
 

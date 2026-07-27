@@ -28,6 +28,7 @@ GitHub → **Settings** → **Secrets and variables** → **Actions** → **New 
 | `REDIS_HOST` | Recomandat prod | `10.60.0.2` (Redis VPS via WireGuard). Dacă lipsește, rămâne valoarea din `agent.json`. |
 | `BACKEND_URL` | Nu | Dacă lipsește, rămâne `BackendUrl` din `agent.json` (prod: `https://universalrestaurant.systems`). |
 | `REDIS_USER` | Nu | Doar pentru legacy MSI cu ACL user global |
+| `UPDATE_SIGNATURE_SECRET` | Recomandat prod | Secret HMAC pentru `release-manifest.json` + `UpdateSignatureSecret` în MSI. **Nu** comite în git. |
 
 ### Build local (fără CI)
 
@@ -57,7 +58,40 @@ Dacă un client are deja o instalare stricată: trimite același link de downloa
    git tag v1.0.13
    git push origin v1.0.13
    ```
-4. CI produce **`URSPrinterAgentSetup.exe`** (Release la tag `v*`; artifact la push `main`).
+4. CI produce **`URSPrinterAgentSetup.exe`** + **`release-manifest.json`** (Release la tag `v*`; artifact la push `main`).
+
+## Auto-update (fără restart backend)
+
+La tag `v*`, agenții enrolled verifică la ~30s manifestul GitHub și se actualizează singuri.
+
+| Asset release | Rol |
+|---------------|-----|
+| `URSPrinterAgentSetup.exe` | Installer WiX Burn (MSI + WireGuard embedded) |
+| `release-manifest.json` | Versiune, URL download, SHA256, semnătură HMAC |
+
+Manifest (generat de CI):
+
+`https://github.com/adrian-badulescu/Printer-Agent/releases/latest/download/release-manifest.json`
+
+Agentul compară `manifest.version` cu `Version` locală din install-dir, verifică semnătura + hash, descarcă EXE, rulează `/quiet /norestart`.
+
+**Release operator:** bump versiuni → `git tag vX.Y.Z` → push tag. **Fără** modificări env backend.
+
+**Prima activare:** agenții foarte vechi (fără `UpdateManifestUrl` / secret real) pot necesita o reinstalare manuală; după aceea lanțul auto-update funcționează.
+
+**Fallback:** dacă `UpdateManifestUrl` e gol în `agent.json`, agentul folosește vechiul `GET api/agents/{id}/update` (backend).
+
+Script local (debug):
+
+```powershell
+.\scripts\New-ReleaseManifest.ps1 `
+  -InstallerPath .\URSPrinterAgentSetup.exe `
+  -Version 1.5.0 `
+  -OutputPath .\release-manifest.json `
+  -UpdateSignatureSecret $env:UPDATE_SIGNATURE_SECRET
+```
+
+Log installer auto-update: `%TEMP%\urs-agent-update.log`
 
 ## Link download (FE)
 
@@ -86,4 +120,4 @@ dotnet build PrinterAgent.Bundle/PrinterAgent.Bundle.wixproj -c Release -p:SelfS
 # → PrinterAgent.Bundle\bin\Release\URSPrinterAgentSetup.exe
 ```
 
-**CI:** workflow-ul rulează pe runner **self-hosted** Windows. Dacă build-urile rămân `queued`, pornește runner-ul sau rulează `Build-ProductionInstaller.ps1` și încarcă manual asset-ul la release (`gh release upload v1.2.7 URSPrinterAgentSetup.exe`).
+**CI:** workflow-ul rulează pe runner **self-hosted** Windows. Dacă build-urile rămân `queued`, pornește runner-ul sau rulează `Build-ProductionInstaller.ps1` și încarcă manual asset-urile la release (`gh release upload v1.2.7 URSPrinterAgentSetup.exe release-manifest.json`).
