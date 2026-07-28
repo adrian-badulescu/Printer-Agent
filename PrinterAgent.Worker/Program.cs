@@ -9,7 +9,6 @@ using PrinterAgent.Application.Storage;
 using PrinterAgent.Application.UseCases;
 using PrinterAgent.Infrastructure.Http;
 using PrinterAgent.Infrastructure.LocalApi;
-using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Networking;
 using PrinterAgent.Infrastructure.Persistence;
 using PrinterAgent.Infrastructure.Printing;

@@ -8,7 +8,7 @@ namespace PrinterAgent.Infrastructure.Persistence;
 /// <summary>
 /// Ține câmpuri din <c>agent.json</c> (ProgramData) aliniate cu install-dir / sesiunea (vizibilitate operatori).
 /// </summary>
-internal static class AgentProgramDataAgentJsonSync
+public static class AgentProgramDataAgentJsonSync
 {
     private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
