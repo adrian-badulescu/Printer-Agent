@@ -9,8 +9,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ($TagVersion -match '^v(.+)$') {
+# GITHUB_REF_NAME is "main" on branch pushes — only compare to tag when it looks like vX.Y.Z
+if ($TagVersion -match '^v(\d+\.\d+\.\d+.*)$') {
     $TagVersion = $Matches[1]
+}
+elseif ($TagVersion -match '^\d+\.\d+\.\d+') {
+    # explicit -TagVersion 1.5.9
+}
+else {
+    $TagVersion = ''
 }
 
 $agentVersion = (Get-Content -LiteralPath $AgentJsonPath -Raw | ConvertFrom-Json).Version.Trim()
