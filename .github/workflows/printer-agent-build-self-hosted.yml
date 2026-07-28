@@ -45,6 +45,12 @@ jobs:
         run: |
           & (Join-Path $env:GITHUB_WORKSPACE 'scripts\Assert-ReleaseVersionAlignment.ps1')
 
+      - name: Assert release files aligned on main (agent.json = Bundle = Package)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        shell: powershell
+        run: |
+          & (Join-Path $env:GITHUB_WORKSPACE 'scripts\Assert-ReleaseVersionAlignment.ps1')
+
       - name: Inject production config from GitHub Secrets
         shell: powershell
         env:
