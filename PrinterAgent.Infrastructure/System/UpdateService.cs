@@ -67,14 +67,36 @@ public class UpdateService : IUpdateService
             return;
         }
 
+        // #region agent log
+        UpdateDebugLogger.Log("H-D", "UpdateService:manifest", "Manifest fetched", new
+        {
+            remoteVersion = manifest.Version,
+            localVersion = _appConfiguration.Version,
+            applicable = ReleaseUpdateHelper.IsManifestApplicable(manifest, _appConfiguration.Version)
+        });
+        // #endregion
+
         if (!ReleaseUpdateHelper.IsManifestApplicable(manifest, _appConfiguration.Version))
             return;
 
         if (!TryValidateManifestSignature(manifest))
+        {
+            // #region agent log
+            UpdateDebugLogger.Log("H-D", "UpdateService:signature", "Signature rejected", new { manifest.Version });
+            // #endregion
             return;
+        }
 
         if (!ReleaseUpdateHelper.SupportsSilentAutoApply(_appConfiguration.Version))
         {
+            // #region agent log
+            UpdateDebugLogger.Log("H-C", "UpdateService:gate", "Auto-apply blocked (pre-minimum version)", new
+            {
+                localVersion = _appConfiguration.Version,
+                minimum = ReleaseUpdateHelper.MinimumAutoApplyVersion,
+                remoteVersion = manifest.Version
+            });
+            // #endregion
             _logger.LogWarning(
                 "Update {RemoteVersion} is available but auto-apply requires agent {MinimumVersion}+ (current {LocalVersion}). " +
                 "Install once manually; enrollment in ProgramData is preserved.",
@@ -86,6 +108,9 @@ public class UpdateService : IUpdateService
 
         if (UpdateApplyGuard.ShouldSkipApply(out var skipReason))
         {
+            // #region agent log
+            UpdateDebugLogger.Log("H-E", "UpdateService:guard", "Apply skipped", new { skipReason });
+            // #endregion
             _logger.LogInformation("Skipping update apply: {Reason}.", skipReason);
             return;
         }
@@ -120,6 +145,14 @@ public class UpdateService : IUpdateService
         try
         {
             UpdateApplyGuard.MarkApplyStarting();
+            // #region agent log
+            UpdateDebugLogger.Log("H-C", "UpdateService:launch", "Launching delayed installer", new
+            {
+                installerPath,
+                delayPings = UpdateInstallerLauncher.DefaultDelayPingCount,
+                localVersion = _appConfiguration.Version
+            });
+            // #endregion
             LaunchInstallerAndExit(installerPath);
         }
         catch
