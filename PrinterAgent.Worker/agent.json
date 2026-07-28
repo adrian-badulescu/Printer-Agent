@@ -1,40 +1,42 @@
 {
-    "RestaurantId": "",
-    "EnrollmentCode": "",
-    "BackendUrl": "https://universalrestaurant.systems",
-    "BackendJwtToken": "",
-    "UpdateSignatureSecret": "mm8jvps0eaoir44atagaozps1tqa3mn4",
-    "UpdateManifestUrl": "https://github.com/adrian-badulescu/Printer-Agent/releases/latest/download/release-manifest.json",
-    "Version": "1.5.9",
-    "MaxPrintRetryAttempts": 5,
-    "PrintRetryBaseDelayMs": 1000,
-    "PrinterConnectTimeoutSeconds": 15,
-    "Connectivity": {
-        "VerifyAtStartup": true,
-        "BackendHealthPath": "api/ping-lite",
-        "BackendHealthTimeoutSeconds": 10
-    },
-    "WireGuard": {
-        "Enabled": true,
-        "ConfigFilePath": "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
-        "WindowsTunnelServiceName": "WireGuardTunnel$urs-printer-agent",
-        "InstallTunnelServiceIfMissing": true,
-        "WaitForTunnelServiceSeconds": 120,
-        "StartServiceIfStopped": true
-    },
-    "Redis": {
-        "Host": "10.60.0.2",
-        "Port": "6379",
-        "Password": "",
-        "Ssl": false,
-        "AbortConnect": false,
-        "ClientName": "URSPrinterAgent",
-        "StreamKeyPrefix": "print.jobs",
-        "ConsumerGroup": "printer-agents"
-    },
-    "Printers": [],
-    "LocalPrint": {
-        "Enabled": true,
-        "Port": 9247
-    }
+    "RestaurantId":  "",
+    "EnrollmentCode":  "",
+    "BackendUrl":  "https://universalrestaurant.systems",
+    "BackendJwtToken":  "",
+    "UpdateSignatureSecret":  "mm8jvps0eaoir44atagaozps1tqa3mn4",
+    "UpdateManifestUrl":  "https://github.com/adrian-badulescu/Printer-Agent/releases/latest/download/release-manifest.json",
+    "Version":  "1.5.10",
+    "MaxPrintRetryAttempts":  5,
+    "PrintRetryBaseDelayMs":  1000,
+    "PrinterConnectTimeoutSeconds":  15,
+    "Connectivity":  {
+                         "VerifyAtStartup":  true,
+                         "BackendHealthPath":  "api/ping-lite",
+                         "BackendHealthTimeoutSeconds":  10
+                     },
+    "WireGuard":  {
+                      "Enabled":  true,
+                      "ConfigFilePath":  "C:\\ProgramData\\URSPrinterAgent\\wireguard\\urs-printer-agent.conf",
+                      "WindowsTunnelServiceName":  "WireGuardTunnel$urs-printer-agent",
+                      "InstallTunnelServiceIfMissing":  true,
+                      "WaitForTunnelServiceSeconds":  120,
+                      "StartServiceIfStopped":  true
+                  },
+    "Redis":  {
+                  "Host":  "10.60.0.2",
+                  "Port":  "6379",
+                  "Password":  "",
+                  "Ssl":  false,
+                  "AbortConnect":  false,
+                  "ClientName":  "URSPrinterAgent",
+                  "StreamKeyPrefix":  "print.jobs",
+                  "ConsumerGroup":  "printer-agents"
+              },
+    "Printers":  [
+
+                 ],
+    "LocalPrint":  {
+                       "Enabled":  true,
+                       "Port":  9247
+                   }
 }

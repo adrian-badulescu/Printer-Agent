@@ -38,6 +38,7 @@ try
             var bundledReceiptHeader = Path.Combine(AppContext.BaseDirectory, AgentProgramData.ReceiptHeaderFileName);
             var programDataReceiptHeader = Path.Combine(AgentProgramData.Root, AgentProgramData.ReceiptHeaderFileName);
             EnsureProgramDataAgentJsonForConfiguration(bundledAgentJson, programDataAgentJson);
+            AgentProgramDataAgentJsonSync.TryWriteVersionFromInstallDir(bundledAgentJson);
             EnsureProgramDataReceiptHeaderForConfiguration(bundledReceiptHeader, programDataReceiptHeader);
             ValidateProgramDataAgentJsonOrWarn(programDataAgentJson);
             config.AddJsonFile(bundledAgentJson, optional: true, reloadOnChange: false);

@@ -38,4 +38,4 @@ $env:GITHUB_REF_NAME = "v$Version"
 & (Join-Path $PSScriptRoot 'Assert-ReleaseVersionAlignment.ps1')
 
 Write-Host "Release version bumped to $Version ($wixVersion in WiX)." -ForegroundColor Green
-Write-Host 'Next: git add/commit, push main, git tag v{0}, git push origin v{0}' -f $Version -ForegroundColor Cyan
+Write-Host ('Next: git add/commit, push main, git tag v{0}, git push origin v{0}' -f $Version) -ForegroundColor Cyan
