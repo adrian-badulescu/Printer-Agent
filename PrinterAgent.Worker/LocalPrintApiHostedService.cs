@@ -187,6 +187,8 @@ public sealed class LocalPrintApiHostedService : BackgroundService
         response.Headers["Access-Control-Allow-Origin"] = "*";
         response.Headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
         response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+        // Chrome Private Network Access: HTTPS public origin → http://192.168.x.x:9247
+        response.Headers["Access-Control-Allow-Private-Network"] = "true";
     }
 
     private static async Task WriteJsonAsync(HttpListenerResponse response, HttpStatusCode status, object payload)

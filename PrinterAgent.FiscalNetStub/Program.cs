@@ -26,5 +26,6 @@ app.MapPost("/api/Receipt", async (HttpRequest request) =>
     });
 });
 
-Console.WriteLine($"FiscalNet stub listening on http://192.168.43.237:{port}/api/Receipt");
-app.Run($"http://192.168.43.237:{port}");
+// Bind all interfaces so agent can use LAN IP, 127.0.0.1, or a changed Wi-Fi address.
+Console.WriteLine($"FiscalNet stub listening on http://0.0.0.0:{port}/api/Receipt (POST only)");
+app.Run($"http://0.0.0.0:{port}");
