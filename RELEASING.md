@@ -51,15 +51,23 @@ Dacă un client are deja o instalare stricată: trimite același link de downloa
 
 ## Cum publici
 
-1. Actualizează versiunea **în același commit** în `Package.wxs`, `Bundle.wxs` (format `1.5.4.0`) și `Version` din `PrinterAgent.Worker/agent.json` (format `1.5.4`).
-2. Tag-ul git trebuie să fie `v` + aceeași versiune (ex. `v1.5.4`). CI verifică alinierea la build pe tag.
-2. Setează **`BackendUrl`** în `agent.json` (fără parolă Redis în commit).
-3. Push pe `main` → CI produce artifact; sau tag pentru Release:
-   ```bash
-   git tag v1.0.13
-   git push origin v1.0.13
+1. Actualizează versiunea **în același commit** în **trei** fișiere (sau rulează scriptul — vezi [`docs/config.md`](docs/config.md)):
+   - `PrinterAgent.Installer/Package.wxs` — format `1.5.14.0`
+   - `PrinterAgent.Bundle/Bundle.wxs` — format `1.5.14.0`
+   - `PrinterAgent.Worker/agent.json` → `Version` — format `1.5.14`
+
+   ```powershell
+   .\scripts\Bump-ReleaseVersion.ps1 -Version 1.5.14
    ```
-4. CI produce **`URSPrinterAgentSetup.exe`** + **`release-manifest.json`** (Release la tag `v*`; artifact la push `main`).
+
+2. Tag-ul git trebuie să fie `v` + aceeași versiune (ex. `v1.5.14`). CI verifică alinierea la build pe tag.
+3. Setează **`BackendUrl`** în `agent.json` (fără parolă Redis în commit).
+4. Push pe `main` → CI produce artifact; sau tag pentru Release:
+   ```bash
+   git tag v1.5.14
+   git push origin v1.5.14
+   ```
+5. CI produce **`URSPrinterAgentSetup.exe`** + **`release-manifest.json`** (Release la tag `v*`; artifact la push `main`).
 
 ## Auto-update (fără restart backend)
 

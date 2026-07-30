@@ -102,6 +102,17 @@ curl.exe -X POST "http://127.0.0.1:65400/api/Receipt" `
 
 Verificare: `c:\FiscalNet\Istoric\*.txt` — notă de plată = doar `TL^`, bon fiscal = `S^` + `P^`.
 
+**Alte Metode (doar RO / FiscalCountry=RO)** — dropup în confirmarea de închidere din `manage-orders` canvas:
+
+| UI | `paymentMethod` | FiscalNet |
+|----|-----------------|-----------|
+| Tichet masă | `meal-ticket` | `P^4` |
+| Bon valoric | `value-ticket` | `P^5` |
+| Voucher | `voucher` | `P^6` |
+| Glovo / Tazz / Bolt Food | `glovo` / `tazz` / `bolt` | `TL^{PLATFORMĂ}` + `P^7` |
+
+Butonul **nu** apare pentru restaurante IT (`fiscalCountryCode === 'IT'`). Epson nu e implicat.
+
 **Factură + storno (RO, post-vânzare):**
 
 - UI: `/manager/table-orders` și `/staff/table-orders` — factură (print/PDF/email) și storno **nu** din POS `manage-orders`.

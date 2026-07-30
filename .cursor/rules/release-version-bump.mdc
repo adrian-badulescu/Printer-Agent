@@ -1,0 +1,22 @@
+---
+description: Bump Printer Agent release version in all 3 places before feature push/release
+alwaysApply: true
+---
+
+# Release version bump (Printer Agent)
+
+Before committing or pushing a **feature** that should ship in a new installer/release, bump the agent version in **all three** places (never only `agent.json` / `Bundle.wxs`):
+
+1. `PrinterAgent.Worker/agent.json` → `"Version": "X.Y.Z"`
+2. `PrinterAgent.Bundle/Bundle.wxs` → `Version="X.Y.Z.0"`
+3. `PrinterAgent.Installer/Package.wxs` → `Version="X.Y.Z.0"`
+
+**Prefer the script** (updates all three + asserts alignment):
+
+```powershell
+.\scripts\Bump-ReleaseVersion.ps1 -Version X.Y.Z
+```
+
+Documented in [`docs/config.md`](docs/config.md) and [`RELEASING.md`](RELEASING.md).
+
+Do **not** bump version for pure docs/test-only commits unless the user asks for a release.

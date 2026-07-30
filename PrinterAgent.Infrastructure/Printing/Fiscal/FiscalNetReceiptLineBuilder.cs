@@ -132,21 +132,46 @@ public static class FiscalNetReceiptLineBuilder
             yield break;
 
         var (type, amount) = MapPayment(job.Payload.PaymentMethod, total);
+        var platformLabel = MapPaymentPlatformLabel(job.Payload.PaymentMethod);
+        if (!string.IsNullOrWhiteSpace(platformLabel))
+            yield return $"TL^{platformLabel}";
+
         yield return $"P^{type}^{FormatPrice(amount)}";
     }
 
     internal static (int Type, decimal Amount) MapPayment(string? paymentMethod, decimal total)
     {
-        var method = (paymentMethod ?? "cash").Trim().ToLowerInvariant();
+        var method = NormalizePaymentMethod(paymentMethod);
         var type = method switch
         {
             "cash" => 1,
             "card" or "credit" => 2,
-            "ticket" => 4,
+            "ticket" or "meal-ticket" => 4,
+            "value-ticket" => 5,
+            "voucher" => 6,
+            "glovo" or "tazz" or "bolt" or "bolt-food" or "external" or "delivery-platform" => 7,
             _ => 1,
         };
         return (type, total);
     }
+
+    /// <summary>
+    /// Label printed via TL^ before P^7 so Glovo/Tazz/Bolt appear distinctly on the receipt
+    /// (FiscalNet type 7 is generic "plată modernă").
+    /// </summary>
+    internal static string? MapPaymentPlatformLabel(string? paymentMethod)
+    {
+        return NormalizePaymentMethod(paymentMethod) switch
+        {
+            "glovo" => "GLOVO",
+            "tazz" => "TAZZ",
+            "bolt" or "bolt-food" => "BOLT FOOD",
+            _ => null,
+        };
+    }
+
+    internal static string NormalizePaymentMethod(string? paymentMethod) =>
+        (paymentMethod ?? "cash").Trim().ToLowerInvariant();
 
     internal static int FormatPrice(decimal amount) =>
         (int)Math.Round(RoundMoney(amount) * 100m, MidpointRounding.AwayFromZero);

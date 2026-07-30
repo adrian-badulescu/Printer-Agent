@@ -186,4 +186,55 @@ public sealed class FiscalNetReceiptLineBuilderTests
 
         Assert.Equal("STORNO BON 99 Z3 01012026", line);
     }
+
+    [Theory]
+    [InlineData("meal-ticket", 4)]
+    [InlineData("ticket", 4)]
+    [InlineData("value-ticket", 5)]
+    [InlineData("voucher", 6)]
+    [InlineData("glovo", 7)]
+    [InlineData("tazz", 7)]
+    [InlineData("bolt", 7)]
+    [InlineData("bolt-food", 7)]
+    [InlineData("external", 7)]
+    public void MapPayment_maps_non_standard_methods(string method, int expectedType)
+    {
+        var (type, amount) = FiscalNetReceiptLineBuilder.MapPayment(method, 12.5m);
+        Assert.Equal(expectedType, type);
+        Assert.Equal(12.5m, amount);
+    }
+
+    [Theory]
+    [InlineData("glovo", "GLOVO")]
+    [InlineData("tazz", "TAZZ")]
+    [InlineData("bolt", "BOLT FOOD")]
+    [InlineData("bolt-food", "BOLT FOOD")]
+    [InlineData("cash", null)]
+    [InlineData("voucher", null)]
+    public void MapPaymentPlatformLabel_for_delivery_platforms(string method, string? expected)
+    {
+        Assert.Equal(expected, FiscalNetReceiptLineBuilder.MapPaymentPlatformLabel(method));
+    }
+
+    [Fact]
+    public void Build_emits_platform_label_before_payment_for_glovo()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "fiscal-receipt",
+                PaymentMethod = "glovo",
+                FinalTotal = 10m,
+                Items = [new PrintJobItem { Name = "Burger", Quantity = 1, UnitPrice = 10m }]
+            }
+        };
+
+        var lines = FiscalNetReceiptLineBuilder.Build(job, new Printer { Fiscal = new FiscalPrinterSettings() });
+        var paymentIndex = Array.FindIndex(lines, l => l.StartsWith("P^", StringComparison.Ordinal));
+
+        Assert.True(paymentIndex > 0);
+        Assert.Equal("TL^GLOVO", lines[paymentIndex - 1]);
+        Assert.Equal("P^7^1000", lines[paymentIndex]);
+    }
 }
