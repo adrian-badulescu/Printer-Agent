@@ -24,6 +24,10 @@ public static class FiscalNetReceiptLineBuilder
         if (!string.IsNullOrWhiteSpace(registrationLine))
             lines.Add($"TL^{Truncate(Sanitize(registrationLine), MaxNameLength)}");
 
+        var tableName = ReceiptRestaurantHeaderHelper.SafeAscii(job.Payload.TableName);
+        if (!string.IsNullOrWhiteSpace(tableName))
+            lines.Add($"TL^{Truncate(Sanitize($"TABLE: {tableName}"), MaxNameLength)}");
+
         var customer = job.Payload.CustomerFiscalCode?.Trim();
         if (!string.IsNullOrWhiteSpace(customer))
             lines.Add($"CF^{Sanitize(customer)}");

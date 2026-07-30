@@ -60,6 +60,49 @@ public sealed class FiscalNetReceiptLineBuilderTests
     }
 
     [Fact]
+    public void Build_includes_table_name_after_restaurant_header()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "fiscal-receipt",
+                PaymentMethod = "card",
+                FinalTotal = 10m,
+                RestaurantName = "Cafe Roma",
+                TableName = "T-1",
+                Items = [new PrintJobItem { Name = "Cafea", Quantity = 1, UnitPrice = 10m }]
+            }
+        };
+
+        var lines = FiscalNetReceiptLineBuilder.Build(job, new Printer { Fiscal = new FiscalPrinterSettings() });
+
+        Assert.Equal("TL^CAFE ROMA", lines[0]);
+        Assert.Equal("TL^TABLE: T-1", lines[1]);
+        Assert.Contains("S^Cafea^1000^1000^buc^1^1", lines);
+        Assert.Contains("P^2^1000", lines);
+    }
+
+    [Fact]
+    public void Build_omits_table_line_when_table_name_missing()
+    {
+        var job = new PrintJob
+        {
+            Payload = new PrintJobPayload
+            {
+                Type = "fiscal-receipt",
+                PaymentMethod = "cash",
+                FinalTotal = 5m,
+                Items = [new PrintJobItem { Name = "Apa", Quantity = 1, UnitPrice = 5m }]
+            }
+        };
+
+        var lines = FiscalNetReceiptLineBuilder.Build(job, new Printer { Fiscal = new FiscalPrinterSettings() });
+
+        Assert.DoesNotContain(lines, line => line.Contains("TABLE:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Build_uses_default_vat_group_when_item_missing()
     {
         var job = new PrintJob
